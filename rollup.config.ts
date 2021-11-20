@@ -1,8 +1,8 @@
 import { defineConfig } from 'rollup'
-import commonjs from '@rollup/plugin-commonjs'
 import nodeResolve from '@rollup/plugin-node-resolve'
 import typescript from 'rollup-plugin-typescript2';
 import json from '@rollup/plugin-json'
+
 export default defineConfig({
   input: 'src/index.ts',
   output: {
@@ -12,6 +12,11 @@ export default defineConfig({
     banner: '#! /usr/bin/env node'
   },
   plugins: [
+    nodeResolve({
+      // 仅作为模块导入
+      modulesOnly: true,
+      preferBuiltins: false
+    }),
     typescript(
       {
         tsconfigOverride: {
@@ -22,11 +27,6 @@ export default defineConfig({
         }
       },
     ),
-    nodeResolve({
-      // 仅作为模块导入
-      modulesOnly:true
-    }),
-    commonjs(),
     json()
   ]
 })

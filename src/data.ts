@@ -10,6 +10,9 @@ export type Template = {
 }
 
 export const templates: Template[] = [
-  { name: "electron-react-vite2", local: false, remoteSrc: "https://github.com/jafshare/Electron-React-Vite2" },
-  { name: "electron-vue3-vite2", local: false, remoteSrc: "https://github.com/jafshare/Electron-Vue3-Vite" }
+  { name: "electron-react-vite2", local: false, remoteSrc: "github:jafshare/Electron-React-Vite2" },
+  { name: "electron-vue3-vite2", local: false, remoteSrc: "github:jafshare/Electron-Vue3-Vite" }
 ]
+export const registries = {
+  taobao: "https://registry.npm.taobao.org"
+}

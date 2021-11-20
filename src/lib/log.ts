@@ -1,16 +1,19 @@
 import chalk from "chalk"
 const debug = (...args: any[]) => {
-  chalk.greenBright(...args)
+  console.log(chalk.greenBright(...args))
+}
+const success = (...args: any[]) => {
+  debug(...args)
 }
 const info = (...args: any[]) => {
-  chalk.white(...args)
+  console.log(chalk.white(...args))
 }
 const warn = (...args: any[]) => {
-  chalk.yellowBright(...args)
+  console.log(chalk.yellowBright(...args))
 }
 const error = (...args: any[]) => {
-  chalk.redBright(...args)
+  console.log(chalk.redBright(...args))
 }
 export {
-  debug, info, warn, error
+  debug, info, warn, error, success
 }

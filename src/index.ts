@@ -1,14 +1,16 @@
 import path from 'path'
 import inquirer from "inquirer"
 import figlet from 'figlet'
+import { execaSync } from 'execa';
+import { copySync } from 'fs-extra'
 import { program } from 'commander'
 
-import { VERSION } from "./constant"
-import { templates } from './data'
-import { error, info } from "./lib/log"
+import { PROJECT_NAME, TEMP_PATH, VERSION } from "./constant"
+import { registries, templates } from './data'
+import { error, info, success } from "./lib/log"
 import { gitDownload } from "./lib/download"
 export type Answers = {
-  project: string,
+  projectName: string,
   template: string,
 }
 function createByTemplate() {
@@ -35,25 +37,51 @@ function createByTemplate() {
     // 下载模板
     try {
       await gitDownload(template.remoteSrc as string, '模板下载中...')
+      copySync(path.join(TEMP_PATH), process.cwd())
+      console.log('拷贝成功')
     } catch (err) {
       error(err)
     }
+    success('创建完成！')
+    info()
+    info(`cd ${answers.projectName}`)
   })
 }
-// 打印logo
-figlet('F T', { width: 100 }, (err, data) => {
-  if (err) {
-    error(err)
-    return
-  }
-  info(data)
-})
+
+program.name(PROJECT_NAME).usage("[command] [options]")
+
 program.version(VERSION)
   .command('init')
   .description('根据模板创建')
   .action(() => {
     createByTemplate()
   })
+// 更改淘宝源
+program.command('change-registry').alias('cr')
+  .description('更换为淘宝下载源')
+  .action(() => {
+    //TODO 更换源
+    try {
+      // 判断 yarn | npm
+      const command = 'yarn'
+      execaSync(command, ['config', 'set', 'registry', registries.taobao])
+      success('已更换为淘宝源')
+    } catch (err) {
+      error(err)
+    }
+  })
+
+program.on("--help", () => {
+  // 打印logo
+  figlet('F T', (err, data) => {
+    if (err) {
+      error(err)
+      return
+    }
+    info(data)
+  })
+})
+
 // 解析命令
 program.parse()
 
