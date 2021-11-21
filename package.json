@@ -2,6 +2,8 @@
   "name": "jt",
   "version": "1.0.0",
   "description": "",
+  "author": "jiangnafu",
+  "license": "ISC",
   "main": "bin/index.js",
   "bin": {
     "jt": "./bin/index.js"
@@ -13,8 +15,6 @@
     "link": "yarn link",
     "unlink": "yarn unlink"
   },
-  "author": "",
-  "license": "ISC",
   "dependencies": {
     "chalk": "^4.1.2",
     "commander": "^8.3.0",

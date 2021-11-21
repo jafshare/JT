@@ -764,14 +764,6 @@ const PROJECT_NAME = 'jt';
 const TEMP_DIR_NAME = '.temp';
 const TEMP_PATH = path__default$1["default"].join(__dirname, '..', TEMP_DIR_NAME);
 
-const templates = [
-    { name: "electron-react-vite2", local: false, remoteSrc: "github:jafshare/Electron-React-Vite2" },
-    { name: "electron-vue3-vite2", local: false, remoteSrc: "github:jafshare/Electron-Vue3-Vite" }
-];
-const registries = {
-    taobao: "https://registry.npm.taobao.org"
-};
-
 const debug = (...args) => {
     console.log(chalk__default["default"].greenBright(...args));
 };
@@ -1260,14 +1252,14 @@ const _download = require("download-git-repo");
 function download(...args) {
     _download(...args);
 }
-const gitDownload = async (src, loadingText) => {
+const gitDownload = async (src, dest, loadingText) => {
     return new Promise((resolve, reject) => {
         const loading = loadingText ? ora(loadingText) : null;
         loading && loading.start();
-        download(src, TEMP_PATH, (err) => {
+        download(src, dest, (err) => {
             console.log(err);
             if (err) {
-                loading && loading.fail();
+                loading && loading.fail('下载错误');
                 reject(err);
             }
             else {
@@ -1278,7 +1270,13 @@ const gitDownload = async (src, loadingText) => {
     });
 };
 
+// 配置加载
+const configs = {
+    registries: require("../config/registries.json"),
+    templates: require("../config/templates.json")
+};
 function createByTemplate() {
+    const templates = configs.templates;
     const defaultProjectName = path__default$1["default"].basename(process.cwd());
     inquirer__default["default"].prompt([
         {
@@ -1290,27 +1288,41 @@ function createByTemplate() {
         {
             type: 'list',
             name: 'template',
-            message: "项目模板",
+            message: "项目模板：",
             choices: templates.map((item) => item.name)
         }
     ]).then(async (answers) => {
         const template = templates.find((item) => item.name === answers.template);
-        if (!template) {
-            error('选择的模板不存在');
-            return;
-        }
+        const pathExists = fsExtra.existsSync(answers.projectName);
         // 下载模板
         try {
-            await gitDownload(template.remoteSrc, '模板下载中...');
-            fsExtra.copySync(path__default$1["default"].join(TEMP_PATH), process.cwd());
-            console.log('拷贝成功');
+            if (pathExists) {
+                const ans = await inquirer__default["default"].prompt([
+                    {
+                        name: 'isOverride',
+                        type: 'confirm',
+                        message: `${answers.projectName} 已存在,是否继续`
+                    }
+                ]);
+                if (!ans.isOverride) {
+                    return;
+                }
+            }
+            await gitDownload(template.remoteSrc, path__default$1["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
+            // 创建目录
+            !pathExists && await fsExtra.mkdir(answers.projectName);
+            // 拷贝文件
+            await fsExtra.copy(path__default$1["default"].join(TEMP_PATH, answers.projectName), answers.projectName);
+            // 删除缓存文件
+            await fsExtra.remove(path__default$1["default"].join(TEMP_PATH, answers.projectName));
         }
         catch (err) {
             error(err);
+            return;
         }
-        success('创建完成！');
-        info();
-        info(`cd ${answers.projectName}`);
+        // TODO 后续处理
+        success('\r\n创建完成！');
+        info(`  cd ${answers.projectName}\r\n`);
     });
 }
 commander.program.name(PROJECT_NAME).usage("[command] [options]");
@@ -1323,13 +1335,29 @@ commander.program.version(VERSION)
 // 更改淘宝源
 commander.program.command('change-registry').alias('cr')
     .description('更换为淘宝下载源')
-    .action(() => {
+    .action(async () => {
+    const registries = configs.registries;
+    const ans = await inquirer__default["default"].prompt([
+        {
+            name: 'registry',
+            type: "list",
+            message: `请选择镜像源`,
+            choices: registries.map((item) => item.name)
+        },
+        {
+            name: 'packageManager',
+            type: 'list',
+            message: '请选择包管理器',
+            choices: ['npm', 'yarn']
+        }
+    ]);
     //TODO 更换源
     try {
         // 判断 yarn | npm
-        const command = 'yarn';
-        execaSync(command, ['config', 'set', 'registry', registries.taobao]);
-        success('已更换为淘宝源');
+        const command = ans.packageManager;
+        const registry = registries.find((item) => item.name === ans.registry);
+        execaSync(command, ['config', 'set', 'registry', registry.src]);
+        success(`已更换为${ans.registry}源`);
     }
     catch (err) {
         error(err);
@@ -1337,13 +1365,11 @@ commander.program.command('change-registry').alias('cr')
 });
 commander.program.on("--help", () => {
     // 打印logo
-    figlet__default["default"]('F T', (err, data) => {
-        if (err) {
-            error(err);
-            return;
-        }
-        info(data);
-    });
+    success("\r\n", figlet__default["default"].textSync('F T', {
+        font: 'Ghost',
+        width: 80,
+        whitespaceBreak: true
+    }));
 });
 // 解析命令
 commander.program.parse();
