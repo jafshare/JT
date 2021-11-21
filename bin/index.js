@@ -1365,7 +1365,7 @@ commander.program.command('change-registry').alias('cr')
 });
 commander.program.on("--help", () => {
     // 打印logo
-    success("\r\n", figlet__default["default"].textSync('F T', {
+    success("\r\n", figlet__default["default"].textSync('J T', {
         font: 'Ghost',
         width: 80,
         whitespaceBreak: true

@@ -125,7 +125,7 @@ program.command('change-registry').alias('cr')
 
 program.on("--help", () => {
   // 打印logo
-  success("\r\n",figlet.textSync('F T', {
+  success("\r\n",figlet.textSync('J T', {
     font: 'Ghost',
     width: 80,
     whitespaceBreak: true
