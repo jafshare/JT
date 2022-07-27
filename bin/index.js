@@ -22,6 +22,7 @@ var onetime = require('onetime');
 var cliSpinners = require('cli-spinners');
 var wcwidth = require('wcwidth');
 var bl = require('bl');
+var gitly = require('gitly');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -38,6 +39,7 @@ var readline__default = /*#__PURE__*/_interopDefaultLegacy(readline);
 var onetime__default = /*#__PURE__*/_interopDefaultLegacy(onetime);
 var cliSpinners__default = /*#__PURE__*/_interopDefaultLegacy(cliSpinners);
 var wcwidth__default = /*#__PURE__*/_interopDefaultLegacy(wcwidth);
+var gitly__default = /*#__PURE__*/_interopDefaultLegacy(gitly);
 
 function stripFinalNewline(input) {
 	const LF = typeof input === 'string' ? '\n' : '\n'.charCodeAt();
@@ -1248,25 +1250,19 @@ function ora(options) {
 /**
  * 模板下载
  */
-const _download = require("download-git-repo");
-function download(...args) {
-    _download(...args);
-}
 const gitDownload = async (src, dest, loadingText) => {
-    return new Promise((resolve, reject) => {
+    return new Promise(async (resolve, reject) => {
         const loading = loadingText ? ora(loadingText) : null;
         loading && loading.start();
-        download(src, dest, (err) => {
-            console.log(err);
-            if (err) {
-                loading && loading.fail('下载错误');
-                reject(err);
-            }
-            else {
-                loading && loading.succeed();
-                resolve(undefined);
-            }
-        });
+        try {
+            await gitly__default["default"](src, dest, { temp: TEMP_PATH });
+            loading && loading.succeed();
+            resolve(undefined);
+        }
+        catch (error) {
+            loading && loading.fail('下载错误' + error);
+            reject(error);
+        }
     });
 };
 
