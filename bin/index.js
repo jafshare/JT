@@ -1,45 +1,630 @@
 #! /usr/bin/env node
 'use strict';
 
-var path$1 = require('path');
-var inquirer = require('inquirer');
 var figlet = require('figlet');
-var node_buffer = require('node:buffer');
-var path = require('node:path');
-var childProcess = require('node:child_process');
-var process$1 = require('node:process');
-var crossSpawn = require('cross-spawn');
-var os = require('os');
-require('node:os');
-var onExit = require('signal-exit');
-require('get-stream');
-require('merge-stream');
-var fsExtra = require('fs-extra');
-var commander = require('commander');
+var path = require('path');
 var chalk = require('chalk');
+var commander = require('commander');
+var inquirer = require('inquirer');
+var fsExtra = require('fs-extra');
+var process$1 = require('node:process');
 var readline = require('node:readline');
 var onetime = require('onetime');
+var signalExit = require('signal-exit');
 var cliSpinners = require('cli-spinners');
 var wcwidth = require('wcwidth');
 var bl = require('bl');
 var gitly = require('gitly');
+var node_buffer = require('node:buffer');
+var path$1 = require('node:path');
+var childProcess = require('node:child_process');
+var crossSpawn = require('cross-spawn');
+var os = require('os');
+require('node:os');
+require('get-stream');
+require('merge-stream');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
-var path__default$1 = /*#__PURE__*/_interopDefaultLegacy(path$1);
-var inquirer__default = /*#__PURE__*/_interopDefaultLegacy(inquirer);
 var figlet__default = /*#__PURE__*/_interopDefaultLegacy(figlet);
 var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
-var childProcess__default = /*#__PURE__*/_interopDefaultLegacy(childProcess);
-var process__default = /*#__PURE__*/_interopDefaultLegacy(process$1);
-var crossSpawn__default = /*#__PURE__*/_interopDefaultLegacy(crossSpawn);
-var onExit__default = /*#__PURE__*/_interopDefaultLegacy(onExit);
 var chalk__default = /*#__PURE__*/_interopDefaultLegacy(chalk);
+var inquirer__default = /*#__PURE__*/_interopDefaultLegacy(inquirer);
+var process__default = /*#__PURE__*/_interopDefaultLegacy(process$1);
 var readline__default = /*#__PURE__*/_interopDefaultLegacy(readline);
 var onetime__default = /*#__PURE__*/_interopDefaultLegacy(onetime);
+var signalExit__default = /*#__PURE__*/_interopDefaultLegacy(signalExit);
 var cliSpinners__default = /*#__PURE__*/_interopDefaultLegacy(cliSpinners);
 var wcwidth__default = /*#__PURE__*/_interopDefaultLegacy(wcwidth);
 var gitly__default = /*#__PURE__*/_interopDefaultLegacy(gitly);
+var path__default$1 = /*#__PURE__*/_interopDefaultLegacy(path$1);
+var childProcess__default = /*#__PURE__*/_interopDefaultLegacy(childProcess);
+var crossSpawn__default = /*#__PURE__*/_interopDefaultLegacy(crossSpawn);
+
+const VERSION = '0.0.1';
+const PROJECT_NAME = 'jt';
+const TEMP_DIR_NAME = '.temp';
+const TEMP_PATH = path__default["default"].join(__dirname, '..', TEMP_DIR_NAME);
+
+const debug = (...args) => {
+    console.log(chalk__default["default"].greenBright(...args));
+};
+const success = (...args) => {
+    debug(...args);
+};
+const info = (...args) => {
+    console.log(chalk__default["default"].white(...args));
+};
+const error = (...args) => {
+    console.log(chalk__default["default"].redBright(...args));
+};
+
+const program = new commander.Command();
+
+const restoreCursor = onetime__default["default"](() => {
+	signalExit__default["default"](() => {
+		process__default["default"].stderr.write('\u001B[?25h');
+	}, {alwaysLast: true});
+});
+
+let isHidden = false;
+
+const cliCursor = {};
+
+cliCursor.show = (writableStream = process__default["default"].stderr) => {
+	if (!writableStream.isTTY) {
+		return;
+	}
+
+	isHidden = false;
+	writableStream.write('\u001B[?25h');
+};
+
+cliCursor.hide = (writableStream = process__default["default"].stderr) => {
+	if (!writableStream.isTTY) {
+		return;
+	}
+
+	restoreCursor();
+	isHidden = true;
+	writableStream.write('\u001B[?25l');
+};
+
+cliCursor.toggle = (force, writableStream) => {
+	if (force !== undefined) {
+		isHidden = force;
+	}
+
+	if (isHidden) {
+		cliCursor.show(writableStream);
+	} else {
+		cliCursor.hide(writableStream);
+	}
+};
+
+const logSymbols = {
+	info: 'ℹ️',
+	success: '✅',
+	warning: '⚠️',
+	error: '❌️'
+};
+
+function ansiRegex({onlyFirst = false} = {}) {
+	const pattern = [
+	    '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
+		'(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
+	].join('|');
+
+	return new RegExp(pattern, onlyFirst ? undefined : 'g');
+}
+
+function stripAnsi(string) {
+	if (typeof string !== 'string') {
+		throw new TypeError(`Expected a \`string\`, got \`${typeof string}\``);
+	}
+
+	return string.replace(ansiRegex(), '');
+}
+
+function isInteractive({stream = process.stdout} = {}) {
+	return Boolean(
+		stream && stream.isTTY &&
+		process.env.TERM !== 'dumb' &&
+		!('CI' in process.env)
+	);
+}
+
+function isUnicodeSupported() {
+	if (process.platform !== 'win32') {
+		return process.env.TERM !== 'linux'; // Linux console (kernel)
+	}
+
+	return Boolean(process.env.CI) ||
+		Boolean(process.env.WT_SESSION) || // Windows Terminal
+		process.env.ConEmuTask === '{cmd::Cmder}' || // ConEmu and cmder
+		process.env.TERM_PROGRAM === 'vscode' ||
+		process.env.TERM === 'xterm-256color' ||
+		process.env.TERM === 'alacritty';
+}
+
+const TEXT = Symbol('text');
+const PREFIX_TEXT = Symbol('prefixText');
+const ASCII_ETX_CODE = 0x03; // Ctrl+C emits this code
+
+// TODO: Use class fields when ESLint 8 is out.
+
+class StdinDiscarder {
+	constructor() {
+		this.requests = 0;
+
+		this.mutedStream = new bl.BufferListStream();
+		this.mutedStream.pipe(process__default["default"].stdout);
+
+		const self = this; // eslint-disable-line unicorn/no-this-assignment
+		this.ourEmit = function (event, data, ...args) {
+			const {stdin} = process__default["default"];
+			if (self.requests > 0 || stdin.emit === self.ourEmit) {
+				if (event === 'keypress') { // Fixes readline behavior
+					return;
+				}
+
+				if (event === 'data' && data.includes(ASCII_ETX_CODE)) {
+					process__default["default"].emit('SIGINT');
+				}
+
+				Reflect.apply(self.oldEmit, this, [event, data, ...args]);
+			} else {
+				Reflect.apply(process__default["default"].stdin.emit, this, [event, data, ...args]);
+			}
+		};
+	}
+
+	start() {
+		this.requests++;
+
+		if (this.requests === 1) {
+			this.realStart();
+		}
+	}
+
+	stop() {
+		if (this.requests <= 0) {
+			throw new Error('`stop` called more times than `start`');
+		}
+
+		this.requests--;
+
+		if (this.requests === 0) {
+			this.realStop();
+		}
+	}
+
+	realStart() {
+		// No known way to make it work reliably on Windows
+		if (process__default["default"].platform === 'win32') {
+			return;
+		}
+
+		this.rl = readline__default["default"].createInterface({
+			input: process__default["default"].stdin,
+			output: this.mutedStream,
+		});
+
+		this.rl.on('SIGINT', () => {
+			if (process__default["default"].listenerCount('SIGINT') === 0) {
+				process__default["default"].emit('SIGINT');
+			} else {
+				this.rl.close();
+				process__default["default"].kill(process__default["default"].pid, 'SIGINT');
+			}
+		});
+	}
+
+	realStop() {
+		if (process__default["default"].platform === 'win32') {
+			return;
+		}
+
+		this.rl.close();
+		this.rl = undefined;
+	}
+}
+
+let stdinDiscarder;
+
+class Ora {
+	constructor(options) {
+		if (!stdinDiscarder) {
+			stdinDiscarder = new StdinDiscarder();
+		}
+
+		if (typeof options === 'string') {
+			options = {
+				text: options,
+			};
+		}
+
+		this.options = {
+			text: '',
+			color: 'cyan',
+			stream: process__default["default"].stderr,
+			discardStdin: true,
+			...options,
+		};
+
+		this.spinner = this.options.spinner;
+
+		this.color = this.options.color;
+		this.hideCursor = this.options.hideCursor !== false;
+		this.interval = this.options.interval || this.spinner.interval || 100;
+		this.stream = this.options.stream;
+		this.id = undefined;
+		this.isEnabled = typeof this.options.isEnabled === 'boolean' ? this.options.isEnabled : isInteractive({stream: this.stream});
+		this.isSilent = typeof this.options.isSilent === 'boolean' ? this.options.isSilent : false;
+
+		// Set *after* `this.stream`
+		this.text = this.options.text;
+		this.prefixText = this.options.prefixText;
+		this.linesToClear = 0;
+		this.indent = this.options.indent;
+		this.discardStdin = this.options.discardStdin;
+		this.isDiscardingStdin = false;
+	}
+
+	get indent() {
+		return this._indent;
+	}
+
+	set indent(indent = 0) {
+		if (!(indent >= 0 && Number.isInteger(indent))) {
+			throw new Error('The `indent` option must be an integer from 0 and up');
+		}
+
+		this._indent = indent;
+		this.updateLineCount();
+	}
+
+	_updateInterval(interval) {
+		if (interval !== undefined) {
+			this.interval = interval;
+		}
+	}
+
+	get spinner() {
+		return this._spinner;
+	}
+
+	set spinner(spinner) {
+		this.frameIndex = 0;
+
+		if (typeof spinner === 'object') {
+			if (spinner.frames === undefined) {
+				throw new Error('The given spinner must have a `frames` property');
+			}
+
+			this._spinner = spinner;
+		} else if (!isUnicodeSupported()) {
+			this._spinner = cliSpinners__default["default"].line;
+		} else if (spinner === undefined) {
+			// Set default spinner
+			this._spinner = cliSpinners__default["default"].dots;
+		} else if (spinner !== 'default' && cliSpinners__default["default"][spinner]) {
+			this._spinner = cliSpinners__default["default"][spinner];
+		} else {
+			throw new Error(`There is no built-in spinner named '${spinner}'. See https://github.com/sindresorhus/cli-spinners/blob/main/spinners.json for a full list.`);
+		}
+
+		this._updateInterval(this._spinner.interval);
+	}
+
+	get text() {
+		return this[TEXT];
+	}
+
+	set text(value) {
+		this[TEXT] = value;
+		this.updateLineCount();
+	}
+
+	get prefixText() {
+		return this[PREFIX_TEXT];
+	}
+
+	set prefixText(value) {
+		this[PREFIX_TEXT] = value;
+		this.updateLineCount();
+	}
+
+	get isSpinning() {
+		return this.id !== undefined;
+	}
+
+	getFullPrefixText(prefixText = this[PREFIX_TEXT], postfix = ' ') {
+		if (typeof prefixText === 'string') {
+			return prefixText + postfix;
+		}
+
+		if (typeof prefixText === 'function') {
+			return prefixText() + postfix;
+		}
+
+		return '';
+	}
+
+	updateLineCount() {
+		const columns = this.stream.columns || 80;
+		const fullPrefixText = this.getFullPrefixText(this.prefixText, '-');
+		this.lineCount = 0;
+		for (const line of stripAnsi(' '.repeat(this.indent) + fullPrefixText + '--' + this[TEXT]).split('\n')) {
+			this.lineCount += Math.max(1, Math.ceil(wcwidth__default["default"](line) / columns));
+		}
+	}
+
+	get isEnabled() {
+		return this._isEnabled && !this.isSilent;
+	}
+
+	set isEnabled(value) {
+		if (typeof value !== 'boolean') {
+			throw new TypeError('The `isEnabled` option must be a boolean');
+		}
+
+		this._isEnabled = value;
+	}
+
+	get isSilent() {
+		return this._isSilent;
+	}
+
+	set isSilent(value) {
+		if (typeof value !== 'boolean') {
+			throw new TypeError('The `isSilent` option must be a boolean');
+		}
+
+		this._isSilent = value;
+	}
+
+	frame() {
+		const {frames} = this.spinner;
+		let frame = frames[this.frameIndex];
+
+		if (this.color) {
+			frame = chalk__default["default"][this.color](frame);
+		}
+
+		this.frameIndex = ++this.frameIndex % frames.length;
+		const fullPrefixText = (typeof this.prefixText === 'string' && this.prefixText !== '') ? this.prefixText + ' ' : '';
+		const fullText = typeof this.text === 'string' ? ' ' + this.text : '';
+
+		return fullPrefixText + frame + fullText;
+	}
+
+	clear() {
+		if (!this.isEnabled || !this.stream.isTTY) {
+			return this;
+		}
+
+		this.stream.cursorTo(0);
+
+		for (let index = 0; index < this.linesToClear; index++) {
+			if (index > 0) {
+				this.stream.moveCursor(0, -1);
+			}
+
+			this.stream.clearLine(1);
+		}
+
+		if (this.indent || this.lastIndent !== this.indent) {
+			this.stream.cursorTo(this.indent);
+		}
+
+		this.lastIndent = this.indent;
+		this.linesToClear = 0;
+
+		return this;
+	}
+
+	render() {
+		if (this.isSilent) {
+			return this;
+		}
+
+		this.clear();
+		this.stream.write(this.frame());
+		this.linesToClear = this.lineCount;
+
+		return this;
+	}
+
+	start(text) {
+		if (text) {
+			this.text = text;
+		}
+
+		if (this.isSilent) {
+			return this;
+		}
+
+		if (!this.isEnabled) {
+			if (this.text) {
+				this.stream.write(`- ${this.text}\n`);
+			}
+
+			return this;
+		}
+
+		if (this.isSpinning) {
+			return this;
+		}
+
+		if (this.hideCursor) {
+			cliCursor.hide(this.stream);
+		}
+
+		if (this.discardStdin && process__default["default"].stdin.isTTY) {
+			this.isDiscardingStdin = true;
+			stdinDiscarder.start();
+		}
+
+		this.render();
+		this.id = setInterval(this.render.bind(this), this.interval);
+
+		return this;
+	}
+
+	stop() {
+		if (!this.isEnabled) {
+			return this;
+		}
+
+		clearInterval(this.id);
+		this.id = undefined;
+		this.frameIndex = 0;
+		this.clear();
+		if (this.hideCursor) {
+			cliCursor.show(this.stream);
+		}
+
+		if (this.discardStdin && process__default["default"].stdin.isTTY && this.isDiscardingStdin) {
+			stdinDiscarder.stop();
+			this.isDiscardingStdin = false;
+		}
+
+		return this;
+	}
+
+	succeed(text) {
+		return this.stopAndPersist({symbol: logSymbols.success, text});
+	}
+
+	fail(text) {
+		return this.stopAndPersist({symbol: logSymbols.error, text});
+	}
+
+	warn(text) {
+		return this.stopAndPersist({symbol: logSymbols.warning, text});
+	}
+
+	info(text) {
+		return this.stopAndPersist({symbol: logSymbols.info, text});
+	}
+
+	stopAndPersist(options = {}) {
+		if (this.isSilent) {
+			return this;
+		}
+
+		const prefixText = options.prefixText || this.prefixText;
+		const text = options.text || this.text;
+		const fullText = (typeof text === 'string') ? ' ' + text : '';
+
+		this.stop();
+		this.stream.write(`${this.getFullPrefixText(prefixText, ' ')}${options.symbol || ' '}${fullText}\n`);
+
+		return this;
+	}
+}
+
+function ora(options) {
+	return new Ora(options);
+}
+
+/**
+ * 模板下载
+ */
+const gitDownload = async (src, dest, loadingText) => {
+    return new Promise(async (resolve, reject) => {
+        const loading = loadingText ? ora(loadingText) : null;
+        loading && loading.start();
+        try {
+            await gitly__default["default"](src, dest, { temp: TEMP_PATH });
+            loading && loading.succeed();
+            resolve(undefined);
+        }
+        catch (error) {
+            loading && loading.fail('下载错误' + error);
+            reject(error);
+        }
+    });
+};
+
+const configs = {
+    registries: require("../config/registries.json"),
+    templates: require("../config/templates.json")
+};
+
+const defineCommand = (command) => {
+    return command;
+};
+
+const COMMAND = {
+    INIT: "init",
+    INIT_ALIAS: "i",
+    CHANGE_REGISTRY: "change-registry",
+    CHANGE_REGISTRY_ALIAS: "cr",
+    TEMPLATE: "template",
+    TEMPLATE_ALIAS: "tp"
+};
+
+async function createByTemplate() {
+    const templates = configs.templates;
+    const defaultProjectName = path__default["default"].basename(process.cwd());
+    const answers = await inquirer__default["default"].prompt([
+        {
+            type: "input",
+            name: "projectName",
+            message: "项目名称：",
+            default: defaultProjectName
+        },
+        {
+            type: 'list',
+            name: 'template',
+            message: "项目模板：",
+            choices: templates.map((item) => item.name)
+        }
+    ]);
+    const template = templates.find((item) => item.name === answers.template);
+    const pathExists = fsExtra.existsSync(answers.projectName);
+    // 下载模板
+    try {
+        if (pathExists) {
+            const ans = await inquirer__default["default"].prompt([
+                {
+                    name: 'isOverride',
+                    type: 'confirm',
+                    message: `${answers.projectName} 已存在,是否继续`
+                }
+            ]);
+            if (!ans.isOverride) {
+                return;
+            }
+        }
+        await gitDownload(template.remoteSrc, path__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
+        // 创建目录
+        !pathExists && await fsExtra.mkdir(answers.projectName);
+        // 拷贝文件
+        await fsExtra.copy(path__default["default"].join(TEMP_PATH, answers.projectName), answers.projectName);
+        // 删除缓存文件
+        await fsExtra.remove(path__default["default"].join(TEMP_PATH, answers.projectName));
+    }
+    catch (err) {
+        error(err);
+        return;
+    }
+    // TODO 后续处理
+    success('\r\n创建完成！');
+    info(`  cd ${answers.projectName}\r\n`);
+}
+var initCommand = defineCommand({
+    name: COMMAND.INIT, use: (ctx) => {
+        ctx.program.version(VERSION)
+            .command(COMMAND.INIT)
+            .description('根据模板创建')
+            .action(() => {
+            createByTemplate();
+        });
+    }
+});
 
 function stripFinalNewline(input) {
 	const LF = typeof input === 'string' ? '\n' : '\n'.charCodeAt();
@@ -77,19 +662,19 @@ function npmRunPath(options = {}) {
 	} = options;
 
 	let previous;
-	let cwdPath = path__default["default"].resolve(cwd);
+	let cwdPath = path__default$1["default"].resolve(cwd);
 	const result = [];
 
 	while (previous !== cwdPath) {
-		result.push(path__default["default"].join(cwdPath, 'node_modules/.bin'));
+		result.push(path__default$1["default"].join(cwdPath, 'node_modules/.bin'));
 		previous = cwdPath;
-		cwdPath = path__default["default"].resolve(cwdPath, '..');
+		cwdPath = path__default$1["default"].resolve(cwdPath, '..');
 	}
 
 	// Ensure the running `node` binary is used.
-	result.push(path__default["default"].resolve(cwd, execPath, '..'));
+	result.push(path__default$1["default"].resolve(cwd, execPath, '..'));
 
-	return [...result, path_].join(path__default["default"].delimiter);
+	return [...result, path_].join(path__default$1["default"].delimiter);
 }
 
 function npmRunPathEnv({env = process__default["default"].env, ...options} = {}) {
@@ -677,7 +1262,7 @@ const handleArguments = (file, args, options = {}) => {
 
 	options.stdio = normalizeStdio(options);
 
-	if (process__default["default"].platform === 'win32' && path__default["default"].basename(file, '.exe') === 'cmd') {
+	if (process__default["default"].platform === 'win32' && path__default$1["default"].basename(file, '.exe') === 'cmd') {
 		// #116
 		args.unshift('/q');
 	}
@@ -761,611 +1346,56 @@ function execaSync(file, args, options) {
 	};
 }
 
-const VERSION = '0.0.1';
-const PROJECT_NAME = 'jt';
-const TEMP_DIR_NAME = '.temp';
-const TEMP_PATH = path__default$1["default"].join(__dirname, '..', TEMP_DIR_NAME);
-
-const debug = (...args) => {
-    console.log(chalk__default["default"].greenBright(...args));
-};
-const success = (...args) => {
-    debug(...args);
-};
-const info = (...args) => {
-    console.log(chalk__default["default"].white(...args));
-};
-const error = (...args) => {
-    console.log(chalk__default["default"].redBright(...args));
-};
-
-const restoreCursor = onetime__default["default"](() => {
-	onExit__default["default"](() => {
-		process__default["default"].stderr.write('\u001B[?25h');
-	}, {alwaysLast: true});
-});
-
-let isHidden = false;
-
-const cliCursor = {};
-
-cliCursor.show = (writableStream = process__default["default"].stderr) => {
-	if (!writableStream.isTTY) {
-		return;
-	}
-
-	isHidden = false;
-	writableStream.write('\u001B[?25h');
-};
-
-cliCursor.hide = (writableStream = process__default["default"].stderr) => {
-	if (!writableStream.isTTY) {
-		return;
-	}
-
-	restoreCursor();
-	isHidden = true;
-	writableStream.write('\u001B[?25l');
-};
-
-cliCursor.toggle = (force, writableStream) => {
-	if (force !== undefined) {
-		isHidden = force;
-	}
-
-	if (isHidden) {
-		cliCursor.show(writableStream);
-	} else {
-		cliCursor.hide(writableStream);
-	}
-};
-
-const logSymbols = {
-	info: 'ℹ️',
-	success: '✅',
-	warning: '⚠️',
-	error: '❌️'
-};
-
-function ansiRegex({onlyFirst = false} = {}) {
-	const pattern = [
-	    '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
-		'(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
-	].join('|');
-
-	return new RegExp(pattern, onlyFirst ? undefined : 'g');
-}
-
-function stripAnsi(string) {
-	if (typeof string !== 'string') {
-		throw new TypeError(`Expected a \`string\`, got \`${typeof string}\``);
-	}
-
-	return string.replace(ansiRegex(), '');
-}
-
-function isInteractive({stream = process.stdout} = {}) {
-	return Boolean(
-		stream && stream.isTTY &&
-		process.env.TERM !== 'dumb' &&
-		!('CI' in process.env)
-	);
-}
-
-function isUnicodeSupported() {
-	if (process.platform !== 'win32') {
-		return process.env.TERM !== 'linux'; // Linux console (kernel)
-	}
-
-	return Boolean(process.env.CI) ||
-		Boolean(process.env.WT_SESSION) || // Windows Terminal
-		process.env.ConEmuTask === '{cmd::Cmder}' || // ConEmu and cmder
-		process.env.TERM_PROGRAM === 'vscode' ||
-		process.env.TERM === 'xterm-256color' ||
-		process.env.TERM === 'alacritty';
-}
-
-const TEXT = Symbol('text');
-const PREFIX_TEXT = Symbol('prefixText');
-const ASCII_ETX_CODE = 0x03; // Ctrl+C emits this code
-
-// TODO: Use class fields when ESLint 8 is out.
-
-class StdinDiscarder {
-	constructor() {
-		this.requests = 0;
-
-		this.mutedStream = new bl.BufferListStream();
-		this.mutedStream.pipe(process__default["default"].stdout);
-
-		const self = this; // eslint-disable-line unicorn/no-this-assignment
-		this.ourEmit = function (event, data, ...args) {
-			const {stdin} = process__default["default"];
-			if (self.requests > 0 || stdin.emit === self.ourEmit) {
-				if (event === 'keypress') { // Fixes readline behavior
-					return;
-				}
-
-				if (event === 'data' && data.includes(ASCII_ETX_CODE)) {
-					process__default["default"].emit('SIGINT');
-				}
-
-				Reflect.apply(self.oldEmit, this, [event, data, ...args]);
-			} else {
-				Reflect.apply(process__default["default"].stdin.emit, this, [event, data, ...args]);
-			}
-		};
-	}
-
-	start() {
-		this.requests++;
-
-		if (this.requests === 1) {
-			this.realStart();
-		}
-	}
-
-	stop() {
-		if (this.requests <= 0) {
-			throw new Error('`stop` called more times than `start`');
-		}
-
-		this.requests--;
-
-		if (this.requests === 0) {
-			this.realStop();
-		}
-	}
-
-	realStart() {
-		// No known way to make it work reliably on Windows
-		if (process__default["default"].platform === 'win32') {
-			return;
-		}
-
-		this.rl = readline__default["default"].createInterface({
-			input: process__default["default"].stdin,
-			output: this.mutedStream,
-		});
-
-		this.rl.on('SIGINT', () => {
-			if (process__default["default"].listenerCount('SIGINT') === 0) {
-				process__default["default"].emit('SIGINT');
-			} else {
-				this.rl.close();
-				process__default["default"].kill(process__default["default"].pid, 'SIGINT');
-			}
-		});
-	}
-
-	realStop() {
-		if (process__default["default"].platform === 'win32') {
-			return;
-		}
-
-		this.rl.close();
-		this.rl = undefined;
-	}
-}
-
-let stdinDiscarder;
-
-class Ora {
-	constructor(options) {
-		if (!stdinDiscarder) {
-			stdinDiscarder = new StdinDiscarder();
-		}
-
-		if (typeof options === 'string') {
-			options = {
-				text: options,
-			};
-		}
-
-		this.options = {
-			text: '',
-			color: 'cyan',
-			stream: process__default["default"].stderr,
-			discardStdin: true,
-			...options,
-		};
-
-		this.spinner = this.options.spinner;
-
-		this.color = this.options.color;
-		this.hideCursor = this.options.hideCursor !== false;
-		this.interval = this.options.interval || this.spinner.interval || 100;
-		this.stream = this.options.stream;
-		this.id = undefined;
-		this.isEnabled = typeof this.options.isEnabled === 'boolean' ? this.options.isEnabled : isInteractive({stream: this.stream});
-		this.isSilent = typeof this.options.isSilent === 'boolean' ? this.options.isSilent : false;
-
-		// Set *after* `this.stream`
-		this.text = this.options.text;
-		this.prefixText = this.options.prefixText;
-		this.linesToClear = 0;
-		this.indent = this.options.indent;
-		this.discardStdin = this.options.discardStdin;
-		this.isDiscardingStdin = false;
-	}
-
-	get indent() {
-		return this._indent;
-	}
-
-	set indent(indent = 0) {
-		if (!(indent >= 0 && Number.isInteger(indent))) {
-			throw new Error('The `indent` option must be an integer from 0 and up');
-		}
-
-		this._indent = indent;
-		this.updateLineCount();
-	}
-
-	_updateInterval(interval) {
-		if (interval !== undefined) {
-			this.interval = interval;
-		}
-	}
-
-	get spinner() {
-		return this._spinner;
-	}
-
-	set spinner(spinner) {
-		this.frameIndex = 0;
-
-		if (typeof spinner === 'object') {
-			if (spinner.frames === undefined) {
-				throw new Error('The given spinner must have a `frames` property');
-			}
-
-			this._spinner = spinner;
-		} else if (!isUnicodeSupported()) {
-			this._spinner = cliSpinners__default["default"].line;
-		} else if (spinner === undefined) {
-			// Set default spinner
-			this._spinner = cliSpinners__default["default"].dots;
-		} else if (spinner !== 'default' && cliSpinners__default["default"][spinner]) {
-			this._spinner = cliSpinners__default["default"][spinner];
-		} else {
-			throw new Error(`There is no built-in spinner named '${spinner}'. See https://github.com/sindresorhus/cli-spinners/blob/main/spinners.json for a full list.`);
-		}
-
-		this._updateInterval(this._spinner.interval);
-	}
-
-	get text() {
-		return this[TEXT];
-	}
-
-	set text(value) {
-		this[TEXT] = value;
-		this.updateLineCount();
-	}
-
-	get prefixText() {
-		return this[PREFIX_TEXT];
-	}
-
-	set prefixText(value) {
-		this[PREFIX_TEXT] = value;
-		this.updateLineCount();
-	}
-
-	get isSpinning() {
-		return this.id !== undefined;
-	}
-
-	getFullPrefixText(prefixText = this[PREFIX_TEXT], postfix = ' ') {
-		if (typeof prefixText === 'string') {
-			return prefixText + postfix;
-		}
-
-		if (typeof prefixText === 'function') {
-			return prefixText() + postfix;
-		}
-
-		return '';
-	}
-
-	updateLineCount() {
-		const columns = this.stream.columns || 80;
-		const fullPrefixText = this.getFullPrefixText(this.prefixText, '-');
-		this.lineCount = 0;
-		for (const line of stripAnsi(' '.repeat(this.indent) + fullPrefixText + '--' + this[TEXT]).split('\n')) {
-			this.lineCount += Math.max(1, Math.ceil(wcwidth__default["default"](line) / columns));
-		}
-	}
-
-	get isEnabled() {
-		return this._isEnabled && !this.isSilent;
-	}
-
-	set isEnabled(value) {
-		if (typeof value !== 'boolean') {
-			throw new TypeError('The `isEnabled` option must be a boolean');
-		}
-
-		this._isEnabled = value;
-	}
-
-	get isSilent() {
-		return this._isSilent;
-	}
-
-	set isSilent(value) {
-		if (typeof value !== 'boolean') {
-			throw new TypeError('The `isSilent` option must be a boolean');
-		}
-
-		this._isSilent = value;
-	}
-
-	frame() {
-		const {frames} = this.spinner;
-		let frame = frames[this.frameIndex];
-
-		if (this.color) {
-			frame = chalk__default["default"][this.color](frame);
-		}
-
-		this.frameIndex = ++this.frameIndex % frames.length;
-		const fullPrefixText = (typeof this.prefixText === 'string' && this.prefixText !== '') ? this.prefixText + ' ' : '';
-		const fullText = typeof this.text === 'string' ? ' ' + this.text : '';
-
-		return fullPrefixText + frame + fullText;
-	}
-
-	clear() {
-		if (!this.isEnabled || !this.stream.isTTY) {
-			return this;
-		}
-
-		this.stream.cursorTo(0);
-
-		for (let index = 0; index < this.linesToClear; index++) {
-			if (index > 0) {
-				this.stream.moveCursor(0, -1);
-			}
-
-			this.stream.clearLine(1);
-		}
-
-		if (this.indent || this.lastIndent !== this.indent) {
-			this.stream.cursorTo(this.indent);
-		}
-
-		this.lastIndent = this.indent;
-		this.linesToClear = 0;
-
-		return this;
-	}
-
-	render() {
-		if (this.isSilent) {
-			return this;
-		}
-
-		this.clear();
-		this.stream.write(this.frame());
-		this.linesToClear = this.lineCount;
-
-		return this;
-	}
-
-	start(text) {
-		if (text) {
-			this.text = text;
-		}
-
-		if (this.isSilent) {
-			return this;
-		}
-
-		if (!this.isEnabled) {
-			if (this.text) {
-				this.stream.write(`- ${this.text}\n`);
-			}
-
-			return this;
-		}
-
-		if (this.isSpinning) {
-			return this;
-		}
-
-		if (this.hideCursor) {
-			cliCursor.hide(this.stream);
-		}
-
-		if (this.discardStdin && process__default["default"].stdin.isTTY) {
-			this.isDiscardingStdin = true;
-			stdinDiscarder.start();
-		}
-
-		this.render();
-		this.id = setInterval(this.render.bind(this), this.interval);
-
-		return this;
-	}
-
-	stop() {
-		if (!this.isEnabled) {
-			return this;
-		}
-
-		clearInterval(this.id);
-		this.id = undefined;
-		this.frameIndex = 0;
-		this.clear();
-		if (this.hideCursor) {
-			cliCursor.show(this.stream);
-		}
-
-		if (this.discardStdin && process__default["default"].stdin.isTTY && this.isDiscardingStdin) {
-			stdinDiscarder.stop();
-			this.isDiscardingStdin = false;
-		}
-
-		return this;
-	}
-
-	succeed(text) {
-		return this.stopAndPersist({symbol: logSymbols.success, text});
-	}
-
-	fail(text) {
-		return this.stopAndPersist({symbol: logSymbols.error, text});
-	}
-
-	warn(text) {
-		return this.stopAndPersist({symbol: logSymbols.warning, text});
-	}
-
-	info(text) {
-		return this.stopAndPersist({symbol: logSymbols.info, text});
-	}
-
-	stopAndPersist(options = {}) {
-		if (this.isSilent) {
-			return this;
-		}
-
-		const prefixText = options.prefixText || this.prefixText;
-		const text = options.text || this.text;
-		const fullText = (typeof text === 'string') ? ' ' + text : '';
-
-		this.stop();
-		this.stream.write(`${this.getFullPrefixText(prefixText, ' ')}${options.symbol || ' '}${fullText}\n`);
-
-		return this;
-	}
-}
-
-function ora(options) {
-	return new Ora(options);
-}
-
-/**
- * 模板下载
- */
-const gitDownload = async (src, dest, loadingText) => {
-    return new Promise(async (resolve, reject) => {
-        const loading = loadingText ? ora(loadingText) : null;
-        loading && loading.start();
-        try {
-            await gitly__default["default"](src, dest, { temp: TEMP_PATH });
-            loading && loading.succeed();
-            resolve(undefined);
-        }
-        catch (error) {
-            loading && loading.fail('下载错误' + error);
-            reject(error);
-        }
-    });
-};
-
-// 配置加载
-const configs = {
-    registries: require("../config/registries.json"),
-    templates: require("../config/templates.json")
-};
-function createByTemplate() {
-    const templates = configs.templates;
-    const defaultProjectName = path__default$1["default"].basename(process.cwd());
-    inquirer__default["default"].prompt([
-        {
-            type: "input",
-            name: "projectName",
-            message: "项目名称：",
-            default: defaultProjectName
-        },
-        {
-            type: 'list',
-            name: 'template',
-            message: "项目模板：",
-            choices: templates.map((item) => item.name)
-        }
-    ]).then(async (answers) => {
-        const template = templates.find((item) => item.name === answers.template);
-        const pathExists = fsExtra.existsSync(answers.projectName);
-        // 下载模板
-        try {
-            if (pathExists) {
-                const ans = await inquirer__default["default"].prompt([
-                    {
-                        name: 'isOverride',
-                        type: 'confirm',
-                        message: `${answers.projectName} 已存在,是否继续`
-                    }
-                ]);
-                if (!ans.isOverride) {
-                    return;
+var registryCommand = defineCommand({
+    name: COMMAND.CHANGE_REGISTRY,
+    use: (ctx) => {
+        // 更改淘宝源
+        ctx.program.command(COMMAND.CHANGE_REGISTRY).alias(COMMAND.CHANGE_REGISTRY_ALIAS)
+            .description('更换为淘宝下载源')
+            .action(async () => {
+            const registries = configs.registries;
+            const ans = await inquirer__default["default"].prompt([
+                {
+                    name: 'registry',
+                    type: "list",
+                    message: `请选择镜像源`,
+                    choices: registries.map((item) => item.name)
+                },
+                {
+                    name: 'packageManager',
+                    type: 'list',
+                    message: '请选择包管理器',
+                    choices: ['npm', 'yarn']
                 }
+            ]);
+            try {
+                // 判断 yarn | npm
+                const command = ans.packageManager;
+                const registry = registries.find((item) => item.name === ans.registry);
+                execaSync(command, ['config', 'set', 'registry', registry.src]);
+                success(`已更换为${ans.registry}源`);
             }
-            await gitDownload(template.remoteSrc, path__default$1["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
-            // 创建目录
-            !pathExists && await fsExtra.mkdir(answers.projectName);
-            // 拷贝文件
-            await fsExtra.copy(path__default$1["default"].join(TEMP_PATH, answers.projectName), answers.projectName);
-            // 删除缓存文件
-            await fsExtra.remove(path__default$1["default"].join(TEMP_PATH, answers.projectName));
-        }
-        catch (err) {
-            error(err);
-            return;
-        }
-        // TODO 后续处理
-        success('\r\n创建完成！');
-        info(`  cd ${answers.projectName}\r\n`);
-    });
+            catch (err) {
+                error(err);
+            }
+        });
+    }
+});
+
+program.name(PROJECT_NAME).usage("[command] [options]");
+// 命令行
+const commands = [initCommand, registryCommand];
+for (const command of commands) {
+    // 加载命令
+    command.use({ program });
 }
-commander.program.name(PROJECT_NAME).usage("[command] [options]");
-commander.program.version(VERSION)
-    .command('init')
-    .description('根据模板创建')
-    .action(() => {
-    createByTemplate();
-});
-// 更改淘宝源
-commander.program.command('change-registry').alias('cr')
-    .description('更换为淘宝下载源')
-    .action(async () => {
-    const registries = configs.registries;
-    const ans = await inquirer__default["default"].prompt([
-        {
-            name: 'registry',
-            type: "list",
-            message: `请选择镜像源`,
-            choices: registries.map((item) => item.name)
-        },
-        {
-            name: 'packageManager',
-            type: 'list',
-            message: '请选择包管理器',
-            choices: ['npm', 'yarn']
-        }
-    ]);
-    //TODO 更换源
-    try {
-        // 判断 yarn | npm
-        const command = ans.packageManager;
-        const registry = registries.find((item) => item.name === ans.registry);
-        execaSync(command, ['config', 'set', 'registry', registry.src]);
-        success(`已更换为${ans.registry}源`);
-    }
-    catch (err) {
-        error(err);
-    }
-});
-commander.program.on("--help", () => {
+program.on("--help", () => {
     // 打印logo
-    success("\r\n", figlet__default["default"].textSync('J T', {
+    success("\r\n", figlet__default["default"].textSync(PROJECT_NAME.split('').join(' '), {
         font: 'Ghost',
         width: 80,
         whitespaceBreak: true
     }));
 });
 // 解析命令
-commander.program.parse();
+program.parse();
