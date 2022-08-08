@@ -5,17 +5,18 @@ import { success } from "./lib/log"
 import program from './core';
 import initCommand from "./command/init"
 import registryCommand from "./command/registry"
+import templateCommand from './command/template';
 import { CommandPlugin } from './command/index.d'
 program.name(PROJECT_NAME).usage("[command] [options]")
 // 命令行
-const commands: CommandPlugin[] = [initCommand, registryCommand]
+const commands: CommandPlugin[] = [initCommand, registryCommand, templateCommand]
 for (const command of commands) {
   // 加载命令
   command.use({ program })
 }
 program.on("--help", () => {
   // 打印logo
-  success("\r\n", figlet.textSync( PROJECT_NAME.split('').join(' '), {
+  success("\r\n", figlet.textSync(PROJECT_NAME.split('').join(' '), {
     font: 'Ghost',
     width: 80,
     whitespaceBreak: true

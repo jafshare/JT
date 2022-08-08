@@ -5,7 +5,6 @@ import COMMAND from "@/constant/command"
 import { error, success } from "@/lib/log"
 import configs from '@/config'
 import defineCommand from "../defineCommand";
-import type { Registry } from './index.d';
 export default defineCommand({
   name: COMMAND.CHANGE_REGISTRY,
   use: (ctx) => {

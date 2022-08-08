@@ -66,6 +66,7 @@ export default defineCommand({
   name: COMMAND.INIT, use: (ctx) => {
     ctx.program.version(VERSION)
       .command(COMMAND.INIT)
+      .alias(COMMAND.INIT_ALIAS)
       .description('根据模板创建')
       .action(() => {
         createByTemplate()

@@ -1,4 +1,4 @@
-export type Registry = {
+declare type Registry = {
   name: string,
   src: string
 }
