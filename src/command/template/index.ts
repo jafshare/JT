@@ -1,7 +1,6 @@
 import { TEMPLATE_PATH } from '@/constant/path';
 import { writeJSONSync, readJSONSync } from 'fs-extra'
 import inquirer from "inquirer"
-import { execaSync } from 'execa';
 
 import COMMAND from "@/constant/command"
 import { error, success } from "@/lib/log"
@@ -202,11 +201,11 @@ export default defineCommand({
           templateRegistry.clear()
           success(`模板已清空`)
         } else if (options.detail) {
-          if (!templateRegistry.exists(options.rm)) {
-            error(`模板[${options.rm}]不存在`)
+          if (!templateRegistry.exists(options.detail)) {
+            error(`模板[${options.detail}]不存在`)
             return
           }
-          success(`模板已清空`)
+          success(JSON.stringify(templateRegistry.get(options.detail), null, 2))
         } else {
           if (Object.keys(options).length === 0) {
             success(templateRegistry.templates.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'))

@@ -1,6 +1,6 @@
 import path from 'path'
 import inquirer from "inquirer"
-import { copy, mkdir, remove, existsSync } from 'fs-extra'
+import { copy, mkdir, remove, existsSync, rmSync, mkdirSync } from 'fs-extra'
 
 import { TEMP_PATH, VERSION } from "@/constant"
 import { error, info, success } from "@/lib/log"
@@ -30,7 +30,8 @@ async function createByTemplate() {
     }
   ])
   const template = templates.find((item) => item.name === answers.template) as Template
-  const pathExists = existsSync(answers.projectName)
+  const projectPath = answers.projectName
+  const pathExists = existsSync(projectPath)
   // 下载模板
   try {
     if (pathExists) {
@@ -39,19 +40,45 @@ async function createByTemplate() {
           name: 'isOverride',
           type: 'confirm',
           message: `${answers.projectName} 已存在,是否继续`
+        },
+        {
+          name: 'mode',
+          type: 'list',
+          message: '请选择覆盖模式',
+          choices: ['override', 'replace']
         }
       ])
       if (!ans.isOverride) {
         return
+      } else {
+        // 如果确认覆盖，选择模式，如果是override,则不做处理,如果是replace，则替换整个目录
+        if (ans.mode === 'replace') {
+          // 先删除目录，再创建
+          rmSync(projectPath, { recursive: true })
+          mkdirSync(projectPath)
+        }
       }
     }
-
-    await gitDownload(template.remoteSrc as string, path.join(TEMP_PATH, answers.projectName), '模板下载中...')
-
+    const specifyDirIdentity = '%'
+    let specifyDir = ''
+    let sourceUrl = template.local ? template.localPath : template.remoteSrc
+    // 判断是否有指定目录的语法
+    if (sourceUrl?.includes(specifyDirIdentity)) {
+      [sourceUrl, specifyDir] = sourceUrl.split(specifyDirIdentity)
+      // 需要支持多层文件夹语法
+      if (specifyDir) {
+        specifyDir = path.join(...specifyDir.split('.'))
+      }
+    }
     // 创建目录
     !pathExists && await mkdir(answers.projectName)
+
+    // 如果是远程代码则拉取仓库
+    !template.local && await gitDownload(sourceUrl as string, path.join(TEMP_PATH, answers.projectName), '模板下载中...')
+    const sourcePath = template.local ? path.join(sourceUrl as string, specifyDir) : path.join(TEMP_PATH, answers.projectName, specifyDir)
     // 拷贝文件
-    await copy(path.join(TEMP_PATH, answers.projectName), answers.projectName)
+    await copy(sourcePath, answers.projectName)
+
     // 删除缓存文件
     await remove(path.join(TEMP_PATH, answers.projectName))
   } catch (err) {

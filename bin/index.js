@@ -588,7 +588,8 @@ async function createByTemplate() {
         }
     ]);
     const template = templates.find((item) => item.name === answers.template);
-    const pathExists = fsExtra.existsSync(answers.projectName);
+    const projectPath = answers.projectName;
+    const pathExists = fsExtra.existsSync(projectPath);
     // 下载模板
     try {
         if (pathExists) {
@@ -597,17 +598,44 @@ async function createByTemplate() {
                     name: 'isOverride',
                     type: 'confirm',
                     message: `${answers.projectName} 已存在,是否继续`
+                },
+                {
+                    name: 'mode',
+                    type: 'list',
+                    message: '请选择覆盖模式',
+                    choices: ['override', 'replace']
                 }
             ]);
             if (!ans.isOverride) {
                 return;
             }
+            else {
+                // 如果确认覆盖，选择模式，如果是override,则不做处理,如果是replace，则替换整个目录
+                if (ans.mode === 'replace') {
+                    // 先删除目录，再创建
+                    fsExtra.rmSync(projectPath, { recursive: true });
+                    fsExtra.mkdirSync(projectPath);
+                }
+            }
         }
-        await gitDownload(template.remoteSrc, path__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
+        const specifyDirIdentity = '%';
+        let specifyDir = '';
+        let sourceUrl = template.local ? template.localPath : template.remoteSrc;
+        // 判断是否有指定目录的语法
+        if (sourceUrl?.includes(specifyDirIdentity)) {
+            [sourceUrl, specifyDir] = sourceUrl.split(specifyDirIdentity);
+            // 需要支持多层文件夹语法
+            if (specifyDir) {
+                specifyDir = path__default["default"].join(...specifyDir.split('.'));
+            }
+        }
         // 创建目录
         !pathExists && await fsExtra.mkdir(answers.projectName);
+        // 如果是远程代码则拉取仓库
+        !template.local && await gitDownload(sourceUrl, path__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
+        const sourcePath = template.local ? path__default["default"].join(sourceUrl, specifyDir) : path__default["default"].join(TEMP_PATH, answers.projectName, specifyDir);
         // 拷贝文件
-        await fsExtra.copy(path__default["default"].join(TEMP_PATH, answers.projectName), answers.projectName);
+        await fsExtra.copy(sourcePath, answers.projectName);
         // 删除缓存文件
         await fsExtra.remove(path__default["default"].join(TEMP_PATH, answers.projectName));
     }
@@ -1588,11 +1616,11 @@ var templateCommand = defineCommand({
                 success(`模板已清空`);
             }
             else if (options.detail) {
-                if (!templateRegistry.exists(options.rm)) {
-                    error(`模板[${options.rm}]不存在`);
+                if (!templateRegistry.exists(options.detail)) {
+                    error(`模板[${options.detail}]不存在`);
                     return;
                 }
-                success(`模板已清空`);
+                success(JSON.stringify(templateRegistry.get(options.detail), null, 2));
             }
             else {
                 if (Object.keys(options).length === 0) {
