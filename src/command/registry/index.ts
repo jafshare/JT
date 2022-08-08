@@ -24,7 +24,7 @@ export default defineCommand({
             name: 'packageManager',
             type: 'list',
             message: '请选择包管理器',
-            choices: ['npm', 'yarn']
+            choices: ['npm', 'yarn', 'pnpm']
           }
         ])
         try {

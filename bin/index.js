@@ -572,7 +572,7 @@ const COMMAND = {
 
 async function createByTemplate() {
     const templates = configs.templates;
-    const defaultProjectName = path__default["default"].basename(process.cwd());
+    const defaultProjectName = 'jt-template';
     const answers = await inquirer__default["default"].prompt([
         {
             type: "input",
@@ -1370,7 +1370,7 @@ var registryCommand = defineCommand({
                     name: 'packageManager',
                     type: 'list',
                     message: '请选择包管理器',
-                    choices: ['npm', 'yarn']
+                    choices: ['npm', 'yarn', 'pnpm']
                 }
             ]);
             try {

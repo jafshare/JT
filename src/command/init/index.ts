@@ -14,7 +14,7 @@ export type Answers = {
 }
 async function createByTemplate() {
   const templates = configs.templates
-  const defaultProjectName = path.basename(process.cwd())
+  const defaultProjectName = 'jt-template'
   const answers = await inquirer.prompt<Answers>([
     {
       type: "input",
