@@ -101,7 +101,6 @@ export default defineCommand({
       .option('-c, --clear', "清空模板")
       .option('-d, --detail <templateName>', "模板详情")
       .action(async (options) => {
-        console.log('tempaltes:', options)
         if (options.ls) {
           success(templateRegistry.templates.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'))
         } else if (options.add) {
