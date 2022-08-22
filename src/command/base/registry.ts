@@ -1,8 +1,8 @@
-import { readJSONSync, writeJSONSync } from "fs-extra";
+import { readJSONSync, writeJSONSync, existsSync, mkdirSync } from "fs-extra";
 /**
  * 存储基本类，封装基本的存储的功能
  */
-export class BaseRegistry<T extends any> {
+export class BaseRegistry<T extends Record<string, any>> {
   data: T[] = [];
   constructor(public storePath: string, public idPropName: keyof T = "id" as any) {
     this.load();
@@ -31,7 +31,7 @@ export class BaseRegistry<T extends any> {
    */
   add(data: T) {
     // 去重
-    const isExists = this.exists(data[this.idPropName] as string)
+    const isExists = this.exists(data[this.idPropName])
     if (isExists) {
       throw new Error('数据已存在')
     }
@@ -72,6 +72,11 @@ export class BaseRegistry<T extends any> {
   }
   // 加载
   load() {
+    // 判断文件是否存在
+    if (!existsSync(this.storePath)) {
+      this.data = []
+      return
+    }
     this.data = readJSONSync(this.storePath) || []
   }
   // 保存

@@ -27,7 +27,7 @@ export default defineCommand({
       .option('-c, --clear', "清空模板")
       .option('-d, --detail <templateName>', "模板详情")
       .action(async (options) => {
-        if (options.ls) {
+        if (options.ls || Object.keys(options).length === 0) {
           success(templateRegistry.data.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'))
         } else if (options.add) {
           //填写模板信息
@@ -133,10 +133,6 @@ export default defineCommand({
             return
           }
           success(JSON.stringify(templateRegistry.get(options.detail), null, 2))
-        } else {
-          if (Object.keys(options).length === 0) {
-            success(templateRegistry.data.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'))
-          }
         }
       })
   }

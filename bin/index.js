@@ -551,6 +551,7 @@ const gitDownload = async (src, dest, loadingText) => {
 const CONFIG_DIR = path__default["default"].join(__dirname, "../config");
 const TEMPLATE_PATH = path__default["default"].join(CONFIG_DIR, 'templates.json');
 const REGISTRY_PATH = path__default["default"].join(CONFIG_DIR, 'registries.json');
+const DEPLOY_PATH = path__default["default"].join(CONFIG_DIR, 'deploys.json');
 
 const configs = {
     registries: require(REGISTRY_PATH),
@@ -562,12 +563,18 @@ const defineCommand = (command) => {
 };
 
 const COMMAND = {
+    // 生成项目
     INIT: "init",
     INIT_ALIAS: "i",
+    // 换源
     CHANGE_REGISTRY: "change-registry",
     CHANGE_REGISTRY_ALIAS: "cr",
+    // 模板
     TEMPLATE: "template",
-    TEMPLATE_ALIAS: "tp"
+    TEMPLATE_ALIAS: "tp",
+    // 部署
+    DEPLOY: 'deploy',
+    DEPLOY_ALIAS: 'dp',
 };
 
 async function createByTemplate() {
@@ -1416,84 +1423,101 @@ var registryCommand = defineCommand({
 });
 
 /**
- * 对模板仓库的封装
+ * 存储基本类，封装基本的存储的功能
  */
-class TemplateRegistry {
-    templates = [];
-    constructor() {
+class BaseRegistry {
+    storePath;
+    idPropName;
+    data = [];
+    constructor(storePath, idPropName = "id") {
+        this.storePath = storePath;
+        this.idPropName = idPropName;
         this.load();
     }
     /**
-     * 判断模板是否存在，根据name
-     * @param name 模板名称
+     * 判断数据是否存在，根据name
+     * @param id 唯一值
      * @returns 是否存在
      */
-    exists(name) {
-        return !!this.templates.find(tp => tp.name === name);
+    exists(id) {
+        return !!this.data.find(data => data[this.idPropName] === id);
     }
     /**
-     * 获取模板
-     * @param name 模板名称
+     * 获取指定数据
+     * @param id 唯一标识
      */
-    get(name) {
-        if (!this.exists(name)) {
+    get(id) {
+        if (!this.exists(id)) {
             throw new Error('模板不存在');
         }
-        return this.templates.find(tp => tp.name === name);
+        return this.data.find(tp => tp[this.idPropName] === id);
     }
     /**
      * 添加模板
      * @param template 模板参数
      */
-    add(template) {
+    add(data) {
         // 去重
-        const isExists = this.exists(template.name);
+        const isExists = this.exists(data[this.idPropName]);
         if (isExists) {
-            throw new Error('模板已存在');
+            throw new Error('数据已存在');
         }
-        // TODO template校验
-        this.templates.push(template);
+        this.data.push(data);
         this.save();
     }
     /**
-     *
-     * @param name 模板名
+     * 删除数据
+     * @param id 数据唯一标识
      */
-    remove(name) {
-        const idx = this.templates.findIndex(tp => tp.name === name);
+    remove(id) {
+        const idx = this.data.findIndex(data => data[this.idPropName] === id);
         if (idx >= 0) {
-            this.templates.splice(idx, 1);
+            this.data.splice(idx, 1);
             this.save();
         }
     }
     /**
-     * 更新模板
-     * @param name 模板名称
+     * 更新数据
+     * @param id 数据唯一标识
      */
-    updated(name, template) {
-        const idx = this.templates.findIndex(tp => tp.name === name);
+    updated(id, data) {
+        const idx = this.data.findIndex(data => data[this.idPropName] === id);
         if (idx < 0) {
-            throw new Error('模板不存在');
+            throw new Error('数据不存在');
         }
-        const tp = this.templates[idx];
+        const target = this.data[idx];
         // 合并数据
-        Object.assign(tp, template);
+        Object.assign(target, data);
         this.save();
     }
     /**
      * 清空
      */
     clear() {
-        this.templates = [];
+        this.data = [];
         this.save();
     }
     // 加载
     load() {
-        this.templates = fsExtra.readJSONSync(TEMPLATE_PATH) || [];
+        // 判断文件是否存在
+        if (!fsExtra.existsSync(this.storePath)) {
+            this.data = [];
+            return;
+        }
+        this.data = fsExtra.readJSONSync(this.storePath) || [];
     }
     // 保存
     save() {
-        fsExtra.writeJSONSync(TEMPLATE_PATH, this.templates, { spaces: 2 });
+        fsExtra.writeJSONSync(this.storePath, this.data, { spaces: 2 });
+    }
+}
+
+/**
+ * 对模板仓库的封装
+ */
+class TemplateRegistry extends BaseRegistry {
+    constructor() {
+        super(TEMPLATE_PATH, 'name');
     }
 }
 const templateRegistry = new TemplateRegistry();
@@ -1510,8 +1534,8 @@ var templateCommand = defineCommand({
             .option('-c, --clear', "清空模板")
             .option('-d, --detail <templateName>', "模板详情")
             .action(async (options) => {
-            if (options.ls) {
-                success(templateRegistry.templates.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'));
+            if (options.ls || Object.keys(options).length === 0) {
+                success(templateRegistry.data.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'));
             }
             else if (options.add) {
                 //填写模板信息
@@ -1622,18 +1646,38 @@ var templateCommand = defineCommand({
                 }
                 success(JSON.stringify(templateRegistry.get(options.detail), null, 2));
             }
-            else {
-                if (Object.keys(options).length === 0) {
-                    success(templateRegistry.templates.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'));
-                }
-            }
+        });
+    }
+});
+
+// 部署相关的页面
+class DeployRegistry extends BaseRegistry {
+    constructor() {
+        super(DEPLOY_PATH, 'name');
+    }
+}
+new DeployRegistry();
+var deployCommand = defineCommand({
+    name: COMMAND.DEPLOY,
+    use: (ctx) => {
+        ctx.program.command(COMMAND.DEPLOY).alias(COMMAND.DEPLOY_ALIAS)
+            .description("部署功能")
+            .option('-l, --ls', "列出所有部署配置")
+            .option('-a, --add', "添加部署配置")
+            .option('-r, --rm <deployName>', "删除部署配置")
+            .option('-u, --update <deployName>', "更新部署配置")
+            .option('-c, --clear', "清空部署配置")
+            .option('-d, --detail <deployName>', "配置详情")
+            .action(async (options) => {
+            Object.keys(options).length;
+            console.log('options:', Object.keys(options).length);
         });
     }
 });
 
 program.name(PROJECT_NAME).usage("[command] [options]");
 // 命令行
-const commands = [initCommand, registryCommand, templateCommand];
+const commands = [initCommand, registryCommand, templateCommand, deployCommand];
 for (const command of commands) {
     // 加载命令
     command.use({ program });
