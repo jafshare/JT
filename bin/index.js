@@ -2,7 +2,7 @@
 'use strict';
 
 var figlet = require('figlet');
-var path = require('path');
+var fsPath = require('path');
 var chalk = require('chalk');
 var commander = require('commander');
 var inquirer = require('inquirer');
@@ -16,18 +16,25 @@ var wcwidth = require('wcwidth');
 var bl = require('bl');
 var gitly = require('gitly');
 var node_buffer = require('node:buffer');
-var path$1 = require('node:path');
+var path = require('node:path');
 var childProcess = require('node:child_process');
 var crossSpawn = require('cross-spawn');
 var os = require('os');
 require('node:os');
 require('get-stream');
 require('merge-stream');
+var fs = require('fs');
+var makeDir = require('make-dir');
+var isStream$1 = require('is-stream');
+var shellEscape = require('shell-escape');
+var invariant = require('assert');
+var SSH2 = require('ssh2');
+var archiver = require('archiver');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
 var figlet__default = /*#__PURE__*/_interopDefaultLegacy(figlet);
-var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
+var fsPath__default = /*#__PURE__*/_interopDefaultLegacy(fsPath);
 var chalk__default = /*#__PURE__*/_interopDefaultLegacy(chalk);
 var inquirer__default = /*#__PURE__*/_interopDefaultLegacy(inquirer);
 var process__default = /*#__PURE__*/_interopDefaultLegacy(process$1);
@@ -37,14 +44,21 @@ var signalExit__default = /*#__PURE__*/_interopDefaultLegacy(signalExit);
 var cliSpinners__default = /*#__PURE__*/_interopDefaultLegacy(cliSpinners);
 var wcwidth__default = /*#__PURE__*/_interopDefaultLegacy(wcwidth);
 var gitly__default = /*#__PURE__*/_interopDefaultLegacy(gitly);
-var path__default$1 = /*#__PURE__*/_interopDefaultLegacy(path$1);
+var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
 var childProcess__default = /*#__PURE__*/_interopDefaultLegacy(childProcess);
 var crossSpawn__default = /*#__PURE__*/_interopDefaultLegacy(crossSpawn);
+var fs__default = /*#__PURE__*/_interopDefaultLegacy(fs);
+var makeDir__default = /*#__PURE__*/_interopDefaultLegacy(makeDir);
+var isStream__default = /*#__PURE__*/_interopDefaultLegacy(isStream$1);
+var shellEscape__default = /*#__PURE__*/_interopDefaultLegacy(shellEscape);
+var invariant__default = /*#__PURE__*/_interopDefaultLegacy(invariant);
+var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
+var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
 
 const VERSION = '0.0.1';
 const PROJECT_NAME = 'jt';
 const TEMP_DIR_NAME = '.temp';
-const TEMP_PATH = path__default["default"].join(__dirname, '..', TEMP_DIR_NAME);
+const TEMP_PATH = fsPath__default["default"].join(__dirname, '..', TEMP_DIR_NAME);
 
 const debug = (...args) => {
     console.log(chalk__default["default"].greenBright(...args));
@@ -65,6 +79,14 @@ const error = (...args) => {
  */
 const underlineAndBold = (...args) => {
     return chalk__default["default"].underline.bold(...args);
+};
+const newline = (lineNumber = 1) => {
+    for (let index = 0; index < lineNumber; index++) {
+        success();
+    }
+};
+const arrow = () => {
+    success("   ⇓");
 };
 
 const program = new commander.Command();
@@ -556,10 +578,10 @@ const gitDownload = async (src, dest, loadingText) => {
     });
 };
 
-const CONFIG_DIR = path__default["default"].join(__dirname, "../config");
-const TEMPLATE_PATH = path__default["default"].join(CONFIG_DIR, 'templates.json');
-const REGISTRY_PATH = path__default["default"].join(CONFIG_DIR, 'registries.json');
-const DEPLOY_PATH = path__default["default"].join(CONFIG_DIR, 'deploys.json');
+const CONFIG_DIR = fsPath__default["default"].join(__dirname, "../config");
+const TEMPLATE_PATH = fsPath__default["default"].join(CONFIG_DIR, 'templates.json');
+const REGISTRY_PATH = fsPath__default["default"].join(CONFIG_DIR, 'registries.json');
+const DEPLOY_PATH = fsPath__default["default"].join(CONFIG_DIR, 'deploys.json');
 
 const configs = {
     registries: require(REGISTRY_PATH),
@@ -641,18 +663,18 @@ async function createByTemplate() {
             [sourceUrl, specifyDir] = sourceUrl.split(specifyDirIdentity);
             // 需要支持多层文件夹语法
             if (specifyDir) {
-                specifyDir = path__default["default"].join(...specifyDir.split('.'));
+                specifyDir = fsPath__default["default"].join(...specifyDir.split('.'));
             }
         }
         // 创建目录
         !pathExists && await fsExtra.mkdir(answers.projectName);
         // 如果是远程代码则拉取仓库
-        !template.local && await gitDownload(sourceUrl, path__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
-        const sourcePath = template.local ? path__default["default"].join(sourceUrl, specifyDir) : path__default["default"].join(TEMP_PATH, answers.projectName, specifyDir);
+        !template.local && await gitDownload(sourceUrl, fsPath__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
+        const sourcePath = template.local ? fsPath__default["default"].join(sourceUrl, specifyDir) : fsPath__default["default"].join(TEMP_PATH, answers.projectName, specifyDir);
         // 拷贝文件
         await fsExtra.copy(sourcePath, answers.projectName);
         // 删除缓存文件
-        await fsExtra.remove(path__default["default"].join(TEMP_PATH, answers.projectName));
+        await fsExtra.remove(fsPath__default["default"].join(TEMP_PATH, answers.projectName));
     }
     catch (err) {
         error(err);
@@ -710,19 +732,19 @@ function npmRunPath(options = {}) {
 	} = options;
 
 	let previous;
-	let cwdPath = path__default$1["default"].resolve(cwd);
+	let cwdPath = path__default["default"].resolve(cwd);
 	const result = [];
 
 	while (previous !== cwdPath) {
-		result.push(path__default$1["default"].join(cwdPath, 'node_modules/.bin'));
+		result.push(path__default["default"].join(cwdPath, 'node_modules/.bin'));
 		previous = cwdPath;
-		cwdPath = path__default$1["default"].resolve(cwdPath, '..');
+		cwdPath = path__default["default"].resolve(cwdPath, '..');
 	}
 
 	// Ensure the running `node` binary is used.
-	result.push(path__default$1["default"].resolve(cwd, execPath, '..'));
+	result.push(path__default["default"].resolve(cwd, execPath, '..'));
 
-	return [...result, path_].join(path__default$1["default"].delimiter);
+	return [...result, path_].join(path__default["default"].delimiter);
 }
 
 function npmRunPathEnv({env = process__default["default"].env, ...options} = {}) {
@@ -1310,7 +1332,7 @@ const handleArguments = (file, args, options = {}) => {
 
 	options.stdio = normalizeStdio(options);
 
-	if (process__default["default"].platform === 'win32' && path__default$1["default"].basename(file, '.exe') === 'cmd') {
+	if (process__default["default"].platform === 'win32' && path__default["default"].basename(file, '.exe') === 'cmd') {
 		// #116
 		args.unshift('/q');
 	}
@@ -1684,42 +1706,947 @@ const withDefault = (questions, initial) => {
     });
 };
 
+class PromiseQueue {
+    constructor({ concurrency = 1 } = {}) {
+        this.options = { concurrency };
+        this.running = 0;
+        this.queue = [];
+        this.idleCallbacks = [];
+    }
+    clear() {
+        this.queue = [];
+    }
+    onIdle(callback) {
+        this.idleCallbacks.push(callback);
+        return () => {
+            const index = this.idleCallbacks.indexOf(callback);
+            if (index !== -1) {
+                this.idleCallbacks.splice(index, 1);
+            }
+        };
+    }
+    waitTillIdle() {
+        return new Promise(resolve => {
+            if (this.running === 0) {
+                resolve();
+                return;
+            }
+            const dispose = this.onIdle(() => {
+                dispose();
+                resolve();
+            });
+        });
+    }
+    add(callback) {
+        return new Promise((resolve, reject) => {
+            const runCallback = () => {
+                this.running += 1;
+                try {
+                    Promise.resolve(callback()).then(val => {
+                        resolve(val);
+                        this.processNext();
+                    }, err => {
+                        reject(err);
+                        this.processNext();
+                    });
+                }
+                catch (err) {
+                    reject(err);
+                    this.processNext();
+                }
+            };
+            if (this.running >= this.options.concurrency) {
+                this.queue.push(runCallback);
+            }
+            else {
+                runCallback();
+            }
+        });
+    }
+    // Internal function, don't use
+    processNext() {
+        this.running -= 1;
+        const callback = this.queue.shift();
+        if (callback) {
+            callback();
+        }
+        else if (this.running === 0) {
+            this.idleCallbacks.forEach(item => item());
+        }
+    }
+}
+
+/* @flow */
+const defaultFilesystem = {
+    join(pathA, pathB) {
+        return fsPath__default["default"].join(pathA, pathB);
+    },
+    basename(path) {
+        return fsPath__default["default"].basename(path);
+    },
+    stat(path) {
+        return new Promise((resolve, reject) => {
+            fs__default["default"].stat(path, (err, res) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(res);
+                }
+            });
+        });
+    },
+    readdir(path) {
+        return new Promise((resolve, reject) => {
+            fs__default["default"].readdir(path, (err, res) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(res);
+                }
+            });
+        });
+    },
+};
+async function scanDirectoryInternal({ path, recursive, validate, result, fileSystem, queue, reject, }) {
+    const itemStat = await fileSystem.stat(path);
+    if (itemStat.isFile()) {
+        result.files.push(path);
+    }
+    else if (itemStat.isDirectory()) {
+        result.directories.push(path);
+    }
+    if (!itemStat.isDirectory() || recursive === 'none') {
+        return;
+    }
+    const contents = await fileSystem.readdir(path);
+    contents.forEach((item) => {
+        const itemPath = fileSystem.join(path, item);
+        if (!validate(itemPath)) {
+            return;
+        }
+        queue
+            .add(() => scanDirectoryInternal({
+            path: itemPath,
+            recursive: recursive === 'shallow' ? 'none' : 'deep',
+            validate,
+            result,
+            fileSystem,
+            queue,
+            reject,
+        }))
+            .catch(reject);
+    });
+}
+async function scanDirectory(path, { recursive = true, validate = null, concurrency = Infinity, fileSystem = defaultFilesystem, } = {}) {
+    invariant__default["default"](path && typeof path === 'string', 'path must be a valid string');
+    invariant__default["default"](typeof recursive === 'boolean', 'options.recursive must be a valid boolean');
+    invariant__default["default"](validate === null || typeof validate === 'function', 'options.validate must be a valid function');
+    invariant__default["default"](typeof concurrency === 'number', 'options.concurrency must be a valid number');
+    invariant__default["default"](fileSystem !== null && typeof fileSystem === 'object', 'options.fileSystem must be a valid object');
+    const queue = new PromiseQueue({
+        concurrency,
+    });
+    const result = { files: [], directories: [] };
+    const mergedFileSystem = { ...defaultFilesystem, ...fileSystem };
+    await new Promise((resolve, reject) => {
+        scanDirectoryInternal({
+            path,
+            recursive: recursive ? 'deep' : 'shallow',
+            validate: validate != null ? validate : (item) => mergedFileSystem.basename(item).slice(0, 1) !== '.',
+            result,
+            fileSystem: mergedFileSystem,
+            queue,
+            reject,
+        })
+            .then(() => queue.waitTillIdle())
+            .then(resolve, reject);
+    });
+    return result;
+}
+
+const DEFAULT_CONCURRENCY = 1;
+const DEFAULT_VALIDATE = (path) => !fsPath__default["default"].basename(path).startsWith('.');
+const DEFAULT_TICK = () => {
+    /* No Op */
+};
+class SSHError extends Error {
+    constructor(message, code = null) {
+        super(message);
+        this.code = code;
+    }
+}
+function unixifyPath(path) {
+    if (path.includes('\\')) {
+        return path.split('\\').join('/');
+    }
+    return path;
+}
+async function readFile(filePath) {
+    return new Promise((resolve, reject) => {
+        fs__default["default"].readFile(filePath, 'utf8', (err, res) => {
+            if (err) {
+                reject(err);
+            }
+            else {
+                resolve(res);
+            }
+        });
+    });
+}
+const SFTP_MKDIR_ERR_CODE_REGEXP = /Error: (E[\S]+): /;
+async function makeDirectoryWithSftp(path, sftp) {
+    let stats = null;
+    try {
+        stats = await new Promise((resolve, reject) => {
+            sftp.stat(path, (err, res) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(res);
+                }
+            });
+        });
+    }
+    catch (_) {
+        /* No Op */
+    }
+    if (stats) {
+        if (stats.isDirectory()) {
+            // Already exists, nothing to worry about
+            return;
+        }
+        throw new Error('mkdir() failed, target already exists and is not a directory');
+    }
+    try {
+        await new Promise((resolve, reject) => {
+            sftp.mkdir(path, (err) => {
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve();
+                }
+            });
+        });
+    }
+    catch (err) {
+        if (err != null && typeof err.stack === 'string') {
+            const matches = SFTP_MKDIR_ERR_CODE_REGEXP.exec(err.stack);
+            if (matches != null) {
+                throw new SSHError(err.message, matches[1]);
+            }
+            throw err;
+        }
+    }
+}
+class NodeSSH {
+    constructor() {
+        this.connection = null;
+    }
+    getConnection() {
+        const { connection } = this;
+        if (connection == null) {
+            throw new Error('Not connected to server');
+        }
+        return connection;
+    }
+    async connect(givenConfig) {
+        invariant__default["default"](givenConfig != null && typeof givenConfig === 'object', 'config must be a valid object');
+        const config = { ...givenConfig };
+        invariant__default["default"](config.username != null && typeof config.username === 'string', 'config.username must be a valid string');
+        if (config.host != null) {
+            invariant__default["default"](typeof config.host === 'string', 'config.host must be a valid string');
+        }
+        else if (config.sock != null) {
+            invariant__default["default"](typeof config.sock === 'object', 'config.sock must be a valid object');
+        }
+        else {
+            throw new invariant.AssertionError({ message: 'Either config.host or config.sock must be provided' });
+        }
+        if (config.privateKey != null || config.privateKeyPath != null) {
+            if (config.privateKey != null) {
+                invariant__default["default"](typeof config.privateKey === 'string', 'config.privateKey must be a valid string');
+                invariant__default["default"](config.privateKeyPath == null, 'config.privateKeyPath must not be specified when config.privateKey is specified');
+            }
+            else if (config.privateKeyPath != null) {
+                invariant__default["default"](typeof config.privateKeyPath === 'string', 'config.privateKeyPath must be a valid string');
+                invariant__default["default"](config.privateKey == null, 'config.privateKey must not be specified when config.privateKeyPath is specified');
+            }
+            invariant__default["default"](config.passphrase == null || typeof config.passphrase === 'string', 'config.passphrase must be null or a valid string');
+            if (config.privateKeyPath != null) {
+                // Must be an fs path
+                try {
+                    config.privateKey = await readFile(config.privateKeyPath);
+                }
+                catch (err) {
+                    if (err != null && err.code === 'ENOENT') {
+                        throw new invariant.AssertionError({ message: 'config.privateKeyPath does not exist at given fs path' });
+                    }
+                    throw err;
+                }
+            }
+        }
+        else if (config.password != null) {
+            invariant__default["default"](typeof config.password === 'string', 'config.password must be a valid string');
+        }
+        if (config.tryKeyboard != null) {
+            invariant__default["default"](typeof config.tryKeyboard === 'boolean', 'config.tryKeyboard must be a valid boolean');
+        }
+        if (config.tryKeyboard) {
+            const { password } = config;
+            if (config.onKeyboardInteractive != null) {
+                invariant__default["default"](typeof config.onKeyboardInteractive === 'function', 'config.onKeyboardInteractive must be a valid function');
+            }
+            else if (password != null) {
+                config.onKeyboardInteractive = (name, instructions, instructionsLang, prompts, finish) => {
+                    if (prompts.length > 0 && prompts[0].prompt.toLowerCase().includes('password')) {
+                        finish([password]);
+                    }
+                };
+            }
+        }
+        const connection = new SSH2__default["default"].Client();
+        this.connection = connection;
+        await new Promise((resolve, reject) => {
+            connection.on('error', reject);
+            if (config.onKeyboardInteractive) {
+                connection.on('keyboard-interactive', config.onKeyboardInteractive);
+            }
+            connection.on('ready', () => {
+                connection.removeListener('error', reject);
+                resolve();
+            });
+            connection.on('end', () => {
+                if (this.connection === connection) {
+                    this.connection = null;
+                }
+            });
+            connection.on('close', () => {
+                if (this.connection === connection) {
+                    this.connection = null;
+                }
+                reject(new SSHError('No response from server', 'ETIMEDOUT'));
+            });
+            connection.connect(config);
+        });
+        return this;
+    }
+    isConnected() {
+        return this.connection != null;
+    }
+    async requestShell(options) {
+        const connection = this.getConnection();
+        return new Promise((resolve, reject) => {
+            connection.on('error', reject);
+            const callback = (err, res) => {
+                connection.removeListener('error', reject);
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(res);
+                }
+            };
+            if (options == null) {
+                connection.shell(callback);
+            }
+            else {
+                connection.shell(options, callback);
+            }
+        });
+    }
+    async withShell(callback, options) {
+        invariant__default["default"](typeof callback === 'function', 'callback must be a valid function');
+        const shell = await this.requestShell(options);
+        try {
+            await callback(shell);
+        }
+        finally {
+            // Try to close gracefully
+            if (!shell.close()) {
+                // Destroy local socket if it doesn't work
+                shell.destroy();
+            }
+        }
+    }
+    async requestSFTP() {
+        const connection = this.getConnection();
+        return new Promise((resolve, reject) => {
+            connection.on('error', reject);
+            connection.sftp((err, res) => {
+                connection.removeListener('error', reject);
+                if (err) {
+                    reject(err);
+                }
+                else {
+                    resolve(res);
+                }
+            });
+        });
+    }
+    async withSFTP(callback) {
+        invariant__default["default"](typeof callback === 'function', 'callback must be a valid function');
+        const sftp = await this.requestSFTP();
+        try {
+            await callback(sftp);
+        }
+        finally {
+            sftp.end();
+        }
+    }
+    async execCommand(givenCommand, options = {}) {
+        invariant__default["default"](typeof givenCommand === 'string', 'command must be a valid string');
+        invariant__default["default"](options != null && typeof options === 'object', 'options must be a valid object');
+        invariant__default["default"](options.cwd == null || typeof options.cwd === 'string', 'options.cwd must be a valid string');
+        invariant__default["default"](options.stdin == null || typeof options.stdin === 'string' || isStream__default["default"].readable(options.stdin), 'options.stdin must be a valid string or readable stream');
+        invariant__default["default"](options.execOptions == null || typeof options.execOptions === 'object', 'options.execOptions must be a valid object');
+        invariant__default["default"](options.encoding == null || typeof options.encoding === 'string', 'options.encoding must be a valid string');
+        invariant__default["default"](options.onChannel == null || typeof options.onChannel === 'function', 'options.onChannel must be a valid function');
+        invariant__default["default"](options.onStdout == null || typeof options.onStdout === 'function', 'options.onStdout must be a valid function');
+        invariant__default["default"](options.onStderr == null || typeof options.onStderr === 'function', 'options.onStderr must be a valid function');
+        let command = givenCommand;
+        if (options.cwd) {
+            command = `cd ${shellEscape__default["default"]([options.cwd])} ; ${command}`;
+        }
+        const connection = this.getConnection();
+        const output = { stdout: [], stderr: [] };
+        return new Promise((resolve, reject) => {
+            connection.on('error', reject);
+            connection.exec(command, options.execOptions != null ? options.execOptions : {}, (err, channel) => {
+                connection.removeListener('error', reject);
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                if (options.onChannel) {
+                    options.onChannel(channel);
+                }
+                channel.on('data', (chunk) => {
+                    if (options.onStdout)
+                        options.onStdout(chunk);
+                    output.stdout.push(chunk.toString(options.encoding));
+                });
+                channel.stderr.on('data', (chunk) => {
+                    if (options.onStderr)
+                        options.onStderr(chunk);
+                    output.stderr.push(chunk.toString(options.encoding));
+                });
+                if (options.stdin != null) {
+                    if (isStream__default["default"].readable(options.stdin)) {
+                        options.stdin.pipe(channel, {
+                            end: true,
+                        });
+                    }
+                    else {
+                        channel.write(options.stdin);
+                        channel.end();
+                    }
+                }
+                else {
+                    channel.end();
+                }
+                let code = null;
+                let signal = null;
+                channel.on('exit', (code_, signal_) => {
+                    code = code_ !== null && code_ !== void 0 ? code_ : null;
+                    signal = signal_ !== null && signal_ !== void 0 ? signal_ : null;
+                });
+                channel.on('close', () => {
+                    resolve({
+                        code: code != null ? code : null,
+                        signal: signal != null ? signal : null,
+                        stdout: output.stdout.join('').trim(),
+                        stderr: output.stderr.join('').trim(),
+                    });
+                });
+            });
+        });
+    }
+    async exec(command, parameters, options = {}) {
+        invariant__default["default"](typeof command === 'string', 'command must be a valid string');
+        invariant__default["default"](Array.isArray(parameters), 'parameters must be a valid array');
+        invariant__default["default"](options != null && typeof options === 'object', 'options must be a valid object');
+        invariant__default["default"](options.stream == null || ['both', 'stdout', 'stderr'].includes(options.stream), 'options.stream must be one of both, stdout, stderr');
+        for (let i = 0, { length } = parameters; i < length; i += 1) {
+            invariant__default["default"](typeof parameters[i] === 'string', `parameters[${i}] must be a valid string`);
+        }
+        const completeCommand = `${command} ${shellEscape__default["default"](parameters)}`;
+        const response = await this.execCommand(completeCommand, options);
+        if (options.stream == null || options.stream === 'stdout') {
+            if (response.stderr) {
+                throw new Error(response.stderr);
+            }
+            return response.stdout;
+        }
+        if (options.stream === 'stderr') {
+            return response.stderr;
+        }
+        return response;
+    }
+    async mkdir(path, method = 'sftp', givenSftp = null) {
+        invariant__default["default"](typeof path === 'string', 'path must be a valid string');
+        invariant__default["default"](typeof method === 'string' && (method === 'sftp' || method === 'exec'), 'method must be either sftp or exec');
+        invariant__default["default"](givenSftp == null || typeof givenSftp === 'object', 'sftp must be a valid object');
+        if (method === 'exec') {
+            await this.exec('mkdir', ['-p', unixifyPath(path)]);
+            return;
+        }
+        const sftp = givenSftp || (await this.requestSFTP());
+        const makeSftpDirectory = async (retry) => makeDirectoryWithSftp(unixifyPath(path), sftp).catch(async (error) => {
+            if (!retry || error == null || (error.message !== 'No such file' && error.code !== 'ENOENT')) {
+                throw error;
+            }
+            await this.mkdir(fsPath__default["default"].dirname(path), 'sftp', sftp);
+            await makeSftpDirectory(false);
+        });
+        try {
+            await makeSftpDirectory(true);
+        }
+        finally {
+            if (!givenSftp) {
+                sftp.end();
+            }
+        }
+    }
+    async getFile(localFile, remoteFile, givenSftp = null, transferOptions = null) {
+        invariant__default["default"](typeof localFile === 'string', 'localFile must be a valid string');
+        invariant__default["default"](typeof remoteFile === 'string', 'remoteFile must be a valid string');
+        invariant__default["default"](givenSftp == null || typeof givenSftp === 'object', 'sftp must be a valid object');
+        invariant__default["default"](transferOptions == null || typeof transferOptions === 'object', 'transferOptions must be a valid object');
+        const sftp = givenSftp || (await this.requestSFTP());
+        try {
+            await new Promise((resolve, reject) => {
+                sftp.fastGet(unixifyPath(remoteFile), localFile, transferOptions || {}, (err) => {
+                    if (err) {
+                        reject(err);
+                    }
+                    else {
+                        resolve();
+                    }
+                });
+            });
+        }
+        finally {
+            if (!givenSftp) {
+                sftp.end();
+            }
+        }
+    }
+    async putFile(localFile, remoteFile, givenSftp = null, transferOptions = null) {
+        invariant__default["default"](typeof localFile === 'string', 'localFile must be a valid string');
+        invariant__default["default"](typeof remoteFile === 'string', 'remoteFile must be a valid string');
+        invariant__default["default"](givenSftp == null || typeof givenSftp === 'object', 'sftp must be a valid object');
+        invariant__default["default"](transferOptions == null || typeof transferOptions === 'object', 'transferOptions must be a valid object');
+        invariant__default["default"](await new Promise((resolve) => {
+            fs__default["default"].access(localFile, fs__default["default"].constants.R_OK, (err) => {
+                resolve(err === null);
+            });
+        }), `localFile does not exist at ${localFile}`);
+        const sftp = givenSftp || (await this.requestSFTP());
+        const putFile = (retry) => {
+            return new Promise((resolve, reject) => {
+                sftp.fastPut(localFile, unixifyPath(remoteFile), transferOptions || {}, (err) => {
+                    if (err == null) {
+                        resolve();
+                        return;
+                    }
+                    if (err.message === 'No such file' && retry) {
+                        resolve(this.mkdir(fsPath__default["default"].dirname(remoteFile), 'sftp', sftp).then(() => putFile(false)));
+                    }
+                    else {
+                        reject(err);
+                    }
+                });
+            });
+        };
+        try {
+            await putFile(true);
+        }
+        finally {
+            if (!givenSftp) {
+                sftp.end();
+            }
+        }
+    }
+    async putFiles(files, { concurrency = DEFAULT_CONCURRENCY, sftp: givenSftp = null, transferOptions = {} } = {}) {
+        invariant__default["default"](Array.isArray(files), 'files must be an array');
+        for (let i = 0, { length } = files; i < length; i += 1) {
+            const file = files[i];
+            invariant__default["default"](file, 'files items must be valid objects');
+            invariant__default["default"](file.local && typeof file.local === 'string', `files[${i}].local must be a string`);
+            invariant__default["default"](file.remote && typeof file.remote === 'string', `files[${i}].remote must be a string`);
+        }
+        const transferred = [];
+        const sftp = givenSftp || (await this.requestSFTP());
+        const queue = new PromiseQueue({ concurrency });
+        try {
+            await new Promise((resolve, reject) => {
+                files.forEach((file) => {
+                    queue
+                        .add(async () => {
+                        await this.putFile(file.local, file.remote, sftp, transferOptions);
+                        transferred.push(file);
+                    })
+                        .catch(reject);
+                });
+                queue.waitTillIdle().then(resolve);
+            });
+        }
+        catch (error) {
+            if (error != null) {
+                error.transferred = transferred;
+            }
+            throw error;
+        }
+        finally {
+            if (!givenSftp) {
+                sftp.end();
+            }
+        }
+    }
+    async putDirectory(localDirectory, remoteDirectory, { concurrency = DEFAULT_CONCURRENCY, sftp: givenSftp = null, transferOptions = {}, recursive = true, tick = DEFAULT_TICK, validate = DEFAULT_VALIDATE, } = {}) {
+        invariant__default["default"](typeof localDirectory === 'string' && localDirectory, 'localDirectory must be a string');
+        invariant__default["default"](typeof remoteDirectory === 'string' && remoteDirectory, 'remoteDirectory must be a string');
+        const localDirectoryStat = await new Promise((resolve) => {
+            fs__default["default"].stat(localDirectory, (err, stat) => {
+                resolve(stat || null);
+            });
+        });
+        invariant__default["default"](localDirectoryStat != null, `localDirectory does not exist at ${localDirectory}`);
+        invariant__default["default"](localDirectoryStat.isDirectory(), `localDirectory is not a directory at ${localDirectory}`);
+        const sftp = givenSftp || (await this.requestSFTP());
+        const scanned = await scanDirectory(localDirectory, {
+            recursive,
+            validate,
+        });
+        const files = scanned.files.map((item) => fsPath__default["default"].relative(localDirectory, item));
+        const directories = scanned.directories.map((item) => fsPath__default["default"].relative(localDirectory, item));
+        // Sort shortest to longest
+        directories.sort((a, b) => a.length - b.length);
+        let failed = false;
+        try {
+            // Do the directories first.
+            await new Promise((resolve, reject) => {
+                const queue = new PromiseQueue({ concurrency });
+                directories.forEach((directory) => {
+                    queue
+                        .add(async () => {
+                        await this.mkdir(fsPath__default["default"].join(remoteDirectory, directory), 'sftp', sftp);
+                    })
+                        .catch(reject);
+                });
+                resolve(queue.waitTillIdle());
+            });
+            // and now the files
+            await new Promise((resolve, reject) => {
+                const queue = new PromiseQueue({ concurrency });
+                files.forEach((file) => {
+                    queue
+                        .add(async () => {
+                        const localFile = fsPath__default["default"].join(localDirectory, file);
+                        const remoteFile = fsPath__default["default"].join(remoteDirectory, file);
+                        try {
+                            await this.putFile(localFile, remoteFile, sftp, transferOptions);
+                            tick(localFile, remoteFile, null);
+                        }
+                        catch (_) {
+                            failed = true;
+                            tick(localFile, remoteFile, _);
+                        }
+                    })
+                        .catch(reject);
+                });
+                resolve(queue.waitTillIdle());
+            });
+        }
+        finally {
+            if (!givenSftp) {
+                sftp.end();
+            }
+        }
+        return !failed;
+    }
+    async getDirectory(localDirectory, remoteDirectory, { concurrency = DEFAULT_CONCURRENCY, sftp: givenSftp = null, transferOptions = {}, recursive = true, tick = DEFAULT_TICK, validate = DEFAULT_VALIDATE, } = {}) {
+        invariant__default["default"](typeof localDirectory === 'string' && localDirectory, 'localDirectory must be a string');
+        invariant__default["default"](typeof remoteDirectory === 'string' && remoteDirectory, 'remoteDirectory must be a string');
+        const localDirectoryStat = await new Promise((resolve) => {
+            fs__default["default"].stat(localDirectory, (err, stat) => {
+                resolve(stat || null);
+            });
+        });
+        invariant__default["default"](localDirectoryStat != null, `localDirectory does not exist at ${localDirectory}`);
+        invariant__default["default"](localDirectoryStat.isDirectory(), `localDirectory is not a directory at ${localDirectory}`);
+        const sftp = givenSftp || (await this.requestSFTP());
+        const scanned = await scanDirectory(remoteDirectory, {
+            recursive,
+            validate,
+            concurrency,
+            fileSystem: {
+                basename(path) {
+                    return fsPath__default["default"].posix.basename(path);
+                },
+                join(pathA, pathB) {
+                    return fsPath__default["default"].posix.join(pathA, pathB);
+                },
+                readdir(path) {
+                    return new Promise((resolve, reject) => {
+                        sftp.readdir(path, (err, res) => {
+                            if (err) {
+                                reject(err);
+                            }
+                            else {
+                                resolve(res.map((item) => item.filename));
+                            }
+                        });
+                    });
+                },
+                stat(path) {
+                    return new Promise((resolve, reject) => {
+                        sftp.stat(path, (err, res) => {
+                            if (err) {
+                                reject(err);
+                            }
+                            else {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                resolve(res);
+                            }
+                        });
+                    });
+                },
+            },
+        });
+        const files = scanned.files.map((item) => fsPath__default["default"].relative(remoteDirectory, item));
+        const directories = scanned.directories.map((item) => fsPath__default["default"].relative(remoteDirectory, item));
+        // Sort shortest to longest
+        directories.sort((a, b) => a.length - b.length);
+        let failed = false;
+        try {
+            // Do the directories first.
+            await new Promise((resolve, reject) => {
+                const queue = new PromiseQueue({ concurrency });
+                directories.forEach((directory) => {
+                    queue
+                        .add(async () => {
+                        await makeDir__default["default"](fsPath__default["default"].join(localDirectory, directory));
+                    })
+                        .catch(reject);
+                });
+                resolve(queue.waitTillIdle());
+            });
+            // and now the files
+            await new Promise((resolve, reject) => {
+                const queue = new PromiseQueue({ concurrency });
+                files.forEach((file) => {
+                    queue
+                        .add(async () => {
+                        const localFile = fsPath__default["default"].join(localDirectory, file);
+                        const remoteFile = fsPath__default["default"].join(remoteDirectory, file);
+                        try {
+                            await this.getFile(localFile, remoteFile, sftp, transferOptions);
+                            tick(localFile, remoteFile, null);
+                        }
+                        catch (_) {
+                            failed = true;
+                            tick(localFile, remoteFile, _);
+                        }
+                    })
+                        .catch(reject);
+                });
+                resolve(queue.waitTillIdle());
+            });
+        }
+        finally {
+            if (!givenSftp) {
+                sftp.end();
+            }
+        }
+        return !failed;
+    }
+    dispose() {
+        if (this.connection) {
+            this.connection.end();
+            this.connection = null;
+        }
+    }
+}
+
+const ssh = new NodeSSH();
 /**
- * 参考项目: https://github.com/dadaiwei/fe-deploy-cl
+ * 开始打包成zip
+ * @param sourcePath 文件路径
+ */
+const bundle = async (sourcePath) => {
+    return new Promise((resolve, reject) => {
+        if (!fsExtra.existsSync(sourcePath)) {
+            error(`${underlineAndBold(sourcePath)}文件不存在`);
+            return reject(new Error(`${sourcePath}文件不存在`));
+        }
+        const bundler = archiver__default["default"]("zip", {
+            zlib: { level: 9 },
+        });
+        const destPath = sourcePath + ".zip";
+        const output = fs__default["default"].createWriteStream(destPath);
+        output.on("close", (err) => {
+            if (err) {
+                return reject(new Error(`${sourcePath}文件不存在`));
+            }
+            return resolve(void 0);
+        });
+        bundler.pipe(output);
+        bundler.directory(sourcePath, "/");
+        bundler.finalize();
+    });
+};
+/**
+ * 连接服务器
+ * @param config ssh配置
+ * @returns
+ */
+async function connectServer(config) {
+    const { username, password, host, port, privateKeyPath } = config;
+    const sshConfig = {
+        username,
+        password,
+        host,
+        port,
+        privateKeyPath,
+    };
+    return new Promise(async (resolve, reject) => {
+        try {
+            await ssh.connect(sshConfig);
+            resolve(void 0);
+        }
+        catch (err) {
+            reject(new Error(`连接服务器失败 ${err}`));
+        }
+    });
+}
+/**
+ * 上传文件
+ * @param config ssh配置
+ */
+async function upload(config) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            await ssh.putFile(config.sourcePath + ".zip", config.remotePath + `/${config.distDirName}.zip`);
+            resolve(void 0);
+        }
+        catch (err) {
+            reject(new Error(`上传文件失败 ${err}`));
+        }
+    });
+}
+/**
+ * 解压缩
+ * @param config 配置
+ * @returns
+ */
+async function unzip(config) {
+    return new Promise(async (resolve, reject) => {
+        const archiveFilename = `${config.distDirName}.zip`;
+        await ssh.execCommand(`unzip -o ${archiveFilename} && rm -f ${archiveFilename}`, {
+            cwd: config.remotePath,
+            onStderr(chunk) {
+                reject(new Error(`解压错误 ${chunk.toString("utf-8")}`));
+            },
+        });
+        resolve(void 0);
+    });
+}
+/**
+ * 删除本地文件
+ * @param config 配置
+ */
+async function deleteLocal(config) {
+    try {
+        fsExtra.unlinkSync(config.sourcePath + ".zip");
+    }
+    catch (err) {
+        throw new Error(`删除本地文件失败 err`);
+    }
+}
+async function stepLoading(task, message) {
+    const loading = ora(message);
+    loading.start();
+    try {
+        await task();
+    }
+    catch (e) {
+        loading.fail(e?.message || "未知异常");
+        // TODO 保存日志信息
+        throw e;
+    }
+    finally {
+        loading.stop();
+    }
+}
+async function deploy(config) {
+    try {
+        // 第一步打包
+        await stepLoading(async () => bundle(config.sourcePath), "开始压缩...");
+        success("压缩完成");
+        arrow();
+        // 第二步连接服务器
+        await stepLoading(async () => connectServer(config), "开始连接...");
+        success(`连接完成(${underlineAndBold(config.host + ":" + config.port)})`);
+        arrow();
+        // 第三步上传文件
+        await stepLoading(async () => upload(config), "开始上传...");
+        success(`上传完成`);
+        arrow();
+        // 第四步解压缩
+        await stepLoading(async () => unzip(config), "开始解压...");
+        success(`解压完成`);
+    }
+    finally {
+        // 第五步删除文件
+        await stepLoading(async () => deleteLocal(config), "删除本地...");
+        // 手动释放资源
+        ssh.isConnected() && ssh.dispose();
+    }
+}
+
+/**
+ * 参考项目: https://github.com/dadaiwei/fe-deploy-cli
  */
 // 部署相关的页面
 class DeployRegistry extends BaseRegistry {
     constructor() {
-        super(DEPLOY_PATH, 'name');
+        super(DEPLOY_PATH, "name");
     }
 }
 const deployRegistry = new DeployRegistry();
 var deployCommand = defineCommand({
     name: COMMAND.DEPLOY,
     use: (ctx) => {
-        ctx.program.command(COMMAND.DEPLOY).alias(COMMAND.DEPLOY_ALIAS)
+        ctx.program
+            .command(COMMAND.DEPLOY)
+            .alias(COMMAND.DEPLOY_ALIAS)
             .description("部署功能")
-            .option('-l, --ls', "列出所有部署配置")
-            .option('-a, --add', "添加部署配置")
-            .option('-r, --rm <deployName>', "删除部署配置")
-            .option('-u, --update <deployName>', "更新部署配置")
-            .option('-c, --clear', "清空部署配置")
-            .option('-d, --detail <deployName>', "配置详情")
-            .option('-s, --start', "执行部署")
+            .option("-l, --ls", "列出所有部署配置")
+            .option("-a, --add", "添加部署配置")
+            .option("-r, --rm <deployName>", "删除部署配置")
+            .option("-u, --update <deployName>", "更新部署配置")
+            .option("-c, --clear", "清空部署配置")
+            .option("-d, --detail <deployName>", "配置详情")
+            .option("-s, --start", "执行部署")
             .action(async (options) => {
             const questions = [
                 {
-                    name: 'name',
-                    type: 'input',
-                    message: '请输入配置名称',
+                    name: "name",
+                    type: "input",
+                    message: "请输入配置名称",
                     validate(input) {
                         // 非空校验
                         if (!input) {
-                            return '不能为空';
+                            return "不能为空";
                         }
                         // 校验配置是否存在
                         if (options.add && deployRegistry.exists(input)) {
-                            return '配置已存在';
+                            return "配置已存在";
                         }
                         return true;
                     },
@@ -1728,7 +2655,10 @@ var deployCommand = defineCommand({
                     name: "mode",
                     type: "list",
                     message: "请选择SSH模式",
-                    choices: [{ name: '密码', value: 'password' }, { name: '密钥', value: 'privateKey' }]
+                    choices: [
+                        { name: "密码", value: "password" },
+                        { name: "密钥", value: "privateKey" },
+                    ],
                 },
                 {
                     name: "privateKeyPath",
@@ -1736,28 +2666,28 @@ var deployCommand = defineCommand({
                     message: "请输入密钥路径",
                     // 仅当选择了密钥，才需要输入
                     when: (params) => {
-                        return params.mode === 'privateKey';
+                        return params.mode === "privateKey";
                     },
                     validate: validEmpty,
                 },
                 {
-                    name: 'host',
-                    type: 'input',
+                    name: "host",
+                    type: "input",
                     message: "请输入主机地址",
                     validate: validEmpty,
                 },
                 {
-                    name: 'port',
-                    type: 'number',
+                    name: "port",
+                    type: "number",
                     message: "请输入主机端口",
                     default: 22,
                     validate(input) {
                         // 非空校验
                         if (!input) {
-                            return '不能为空';
+                            return "不能为空";
                         }
                         if (input < 1 || input > 65535) {
-                            return '非法端口';
+                            return "非法端口";
                         }
                         return true;
                     },
@@ -1765,11 +2695,11 @@ var deployCommand = defineCommand({
                 {
                     name: "username",
                     type: "input",
-                    message: '请输入登录用户',
+                    message: "请输入登录用户",
                     validate: validEmpty,
                 },
                 {
-                    name: "distPath",
+                    name: "distDirName",
                     type: "input",
                     message: "本地目录名",
                     // 相当于默认名，每次执行命令都会重新询问
@@ -1780,16 +2710,27 @@ var deployCommand = defineCommand({
                     type: "input",
                     message: "远程部署路径",
                     // 相当于默认名，每次执行命令都会重新询问
-                    validate: validEmpty
-                }
+                    validate: validEmpty,
+                },
             ];
             if (options.ls || Object.keys(options).length === 0) {
-                success(deployRegistry.data.map((config, index) => index + 1 + '. ' + config.name).join('\r\n'));
+                success(deployRegistry.data
+                    .map((config, index) => index + 1 + ". " + config.name)
+                    .join("\r\n"));
             }
             else if (options.add) {
                 // 添加部署配置
                 const ans = await inquirer__default["default"].prompt(questions);
-                deployRegistry.add({ name: ans.name, mode: ans.mode, privateKeyPath: ans.privateKeyPath || "", host: ans.host, port: ans.port, username: ans.username, distPath: ans.distPath, remotePath: ans.remotePath });
+                deployRegistry.add({
+                    name: ans.name,
+                    mode: ans.mode,
+                    privateKeyPath: ans.privateKeyPath,
+                    host: ans.host,
+                    port: ans.port,
+                    username: ans.username,
+                    distDirName: ans.distDirName,
+                    remotePath: ans.remotePath,
+                });
                 success(`新增配置${underlineAndBold(ans.name)}`);
             }
             else if (options.update) {
@@ -1799,7 +2740,16 @@ var deployCommand = defineCommand({
                 }
                 const record = deployRegistry.get(options.update);
                 const ans = await inquirer__default["default"].prompt(withDefault(questions, record));
-                deployRegistry.updated(options.update, { name: ans.name, mode: ans.mode, privateKeyPath: ans.privateKeyPath || "", host: ans.host, port: ans.port, username: ans.username, distPath: ans.distPath, remotePath: ans.remotePath });
+                deployRegistry.updated(options.update, {
+                    name: ans.name,
+                    mode: ans.mode,
+                    privateKeyPath: ans.privateKeyPath,
+                    host: ans.host,
+                    port: ans.port,
+                    username: ans.username,
+                    distDirName: ans.distDirName,
+                    remotePath: ans.remotePath,
+                });
                 success(`更新配置${underlineAndBold(options.update)}`);
             }
             else if (options.rm) {
@@ -1823,39 +2773,46 @@ var deployCommand = defineCommand({
             }
             else if (options.start) {
                 // TODO 执行部署命令
-                const configList = deployRegistry.data.map(item => (item.name));
+                const configList = deployRegistry.data.map((item) => item.name);
                 const ans = await inquirer__default["default"].prompt([
                     {
-                        name: 'name',
-                        type: 'list',
-                        choices: configList
+                        name: "name",
+                        type: "list",
+                        choices: configList,
                     },
                     {
-                        name: 'distPath',
-                        type: 'input',
+                        name: "distDirName",
+                        type: "input",
                         default: (params) => {
-                            return deployRegistry.get(params.name)?.distPath || "";
+                            return deployRegistry.get(params.name)?.distDirName || "";
                         },
-                        validate: validEmpty
+                        validate: validEmpty,
                     },
                     {
-                        name: 'password',
+                        name: "password",
                         type: "password",
                         validate: validEmpty,
                         // 仅当选择了密钥，才需要输入
                         when: (params) => {
-                            return deployRegistry.get(params.name)?.mode === 'password';
+                            return deployRegistry.get(params.name)?.mode === "password";
                         },
-                    }
+                    },
                 ]);
                 const record = deployRegistry.get(ans.name);
-                const deployConfig = { ...record, ...ans };
-                success('部署完成');
+                const deployConfig = {
+                    ...record,
+                    ...ans,
+                };
+                // 生成最后的路径
+                deployConfig.sourcePath = fsPath.join(process.cwd(), deployConfig.distDirName);
+                newline();
+                await deploy(deployConfig);
+                newline(2);
+                success("部署完成");
                 // 开始部署
-                console.log('部署参数:', path.join(process.cwd(), deployConfig.distPath));
             }
         });
-    }
+    },
 });
 
 program.name(PROJECT_NAME).usage("[command] [options]");
