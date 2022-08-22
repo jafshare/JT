@@ -2,7 +2,7 @@ import inquirer from "inquirer"
 import { execaSync } from 'execa';
 
 import COMMAND from "@/constant/command"
-import { error, success } from "@/lib/log"
+import { error, success, underlineAndBold } from "@/lib/log"
 import configs from '@/config'
 import defineCommand from "../defineCommand";
 export default defineCommand({
@@ -32,7 +32,7 @@ export default defineCommand({
           const command = ans.packageManager
           const registry = registries.find((item) => item.name === ans.registry) as Registry
           execaSync(command, ['config', 'set', 'registry', registry.src])
-          success(`已更换为${ans.registry}源`)
+          success(`已更换为${underlineAndBold(ans.registry)}源`)
         } catch (err) {
           error(err)
         }

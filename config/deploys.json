@@ -1,0 +1,22 @@
+[
+  {
+    "name": "qa",
+    "mode": "privateKey",
+    "privateKeyPath": "123",
+    "host": "127.0.0.1",
+    "port": 22,
+    "username": "demo",
+    "distPath": "dist",
+    "remotePath": "/usr/share/nginx"
+  },
+  {
+    "name": "test",
+    "mode": "password",
+    "privateKeyPath": "",
+    "host": "127.0.0.1",
+    "port": 22,
+    "username": "root",
+    "distPath": "dist",
+    "remotePath": "/usr/share/nginx"
+  }
+]

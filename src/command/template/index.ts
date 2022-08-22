@@ -2,7 +2,7 @@ import { TEMPLATE_PATH } from '@/constant/path';
 import inquirer from "inquirer"
 
 import COMMAND from "@/constant/command"
-import { error, success } from "@/lib/log"
+import { error, success, underlineAndBold } from "@/lib/log"
 import defineCommand from "../defineCommand";
 import { BaseRegistry } from '../base/registry';
 /**
@@ -116,20 +116,20 @@ export default defineCommand({
             }
           ])
           templateRegistry.updated(options.update, { name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url })
-          success(`更新模板[${options.update}]`)
+          success(`更新模板${underlineAndBold(options.update)}`)
         } else if (options.rm) {
           if (!templateRegistry.exists(options.rm)) {
-            error(`模板[${options.rm}]不存在`)
+            error(`模板${underlineAndBold(options.rm)}不存在`)
             return
           }
           templateRegistry.remove(options.rm)
-          success(`已删除模板[${options.rm}]`)
+          success(`已删除模板${underlineAndBold(options.rm)}`)
         } else if (options.clear) {
           templateRegistry.clear()
           success(`模板已清空`)
         } else if (options.detail) {
           if (!templateRegistry.exists(options.detail)) {
-            error(`模板[${options.detail}]不存在`)
+            error(`模板${underlineAndBold(options.detail)}不存在`)
             return
           }
           success(JSON.stringify(templateRegistry.get(options.detail), null, 2))

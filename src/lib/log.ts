@@ -14,6 +14,30 @@ const warn = (...args: any[]) => {
 const error = (...args: any[]) => {
   console.log(chalk.redBright(...args))
 }
+/**
+ * 返回下划线修饰的字符
+ * @param args 任意字符
+ * @returns 
+ */
+const underline = (...args: any[]) => {
+  return chalk.underline(...args)
+}
+/**
+ * 返回加粗后的字符
+ * @param args 任意字符
+ * @returns 
+ */
+const bold = (...args: any[]) => {
+  return chalk.bold(...args)
+}
+/**
+ * 返回下划线修饰以及加粗的字符
+ * @param args 任意字符
+ * @returns 
+ */
+const underlineAndBold = (...args: any[]) => {
+  return chalk.underline.bold(...args)
+}
 export {
-  debug, info, warn, error, success
+  debug, info, warn, error, success, underline, bold, underlineAndBold
 }
