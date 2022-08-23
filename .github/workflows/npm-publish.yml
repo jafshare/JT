@@ -28,8 +28,6 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 14.18.0
-          cache: yarn # 缓存
-          cache-dependency-path: '**/package-lock.json' # 缓存
           registry-url: https://registry.npmjs.org/
       - name: 安装yarn
         run: npm i -g yarn
