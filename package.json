@@ -7,6 +7,10 @@
   "bin": {
     "jt": "./bin/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jafshare/JT"
+  },
   "scripts": {
     "test": "ts-node src/index.ts",
     "dev": "rollup -c -w",
