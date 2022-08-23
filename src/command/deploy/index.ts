@@ -130,7 +130,7 @@ export default defineCommand({
             validate: validEmpty,
           },
         ];
-        if (options.ls || Object.keys(options).length === 0) {
+        if (options.ls) {
           success(
             deployRegistry.data
               .map((config, index) => index + 1 + ". " + config.name)
@@ -184,33 +184,50 @@ export default defineCommand({
             return;
           }
           success(JSON.stringify(deployRegistry.get(options.detail), null, 2));
-        } else if (options.start) {
+        } else if (options.start || Object.keys(options).length === 0) {
           // TODO 执行部署命令
           const configList = deployRegistry.data.map((item) => item.name);
           const ans = await inquirer.prompt([
             {
               name: "name",
               type: "list",
+              message: '部署配置',
               choices: configList,
             },
             {
-              name: "distDirName",
-              type: "input",
-              default: (params: DeployRecord) => {
-                return deployRegistry.get(params.name)?.distDirName || "";
-              },
-              validate: validEmpty,
+              name: 'isConfirm',
+              type: "confirm",
+              message: (params) => {
+                const record = deployRegistry.get(params.name)!
+                success('------------------------------')
+                success('服务器地址: ' + record.host + ':' + record.port)
+                success('登录用户: ' + record.username)
+                success('本地路径: ' + join(
+                  process.cwd(),
+                  record.distDirName
+                ))
+                success('远程部署路径: ' + record.remotePath)
+                success('------------------------------')
+                return '是否部署:'
+              }
             },
             {
               name: "password",
               type: "password",
+              message: '服务器密码',
               validate: validEmpty,
               // 仅当选择了密钥，才需要输入
               when: (params) => {
-                return deployRegistry.get(params.name)?.mode === "password";
+                return params.isConfirm && deployRegistry.get(params.name)?.mode === "password";
               },
             },
           ]);
+          if (!ans.isConfirm) {
+            newline();
+            error("取消部署")
+            return
+          }
+          // TODO 确认配置，且提示是否需要修改
           const record = deployRegistry.get(ans.name);
           const deployConfig: DeployRecord & {
             password: string;
@@ -225,10 +242,18 @@ export default defineCommand({
             deployConfig.distDirName
           );
           newline();
-          await deploy(deployConfig as any);
-          newline(2);
-          success("部署完成");
-          // 开始部署
+          try {
+            // 开始部署
+            const start = Date.now();
+            await deploy(deployConfig as any);
+            const end = Date.now();
+            newline(2);
+            success(`部署成功,耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
+          } catch (err) {
+            // TODO log日志输出
+            newline(2);
+            error(`部署失败 ${err}`);
+          }
         }
       });
   },

@@ -38,11 +38,26 @@ const bold = (...args: any[]) => {
 const underlineAndBold = (...args: any[]) => {
   return chalk.underline.bold(...args);
 };
+/**
+ * 返回红色文字
+ * @param args 任意字符
+ * @returns 
+ */
+const danger = (...args: any[]) => {
+  return chalk.redBright(...args)
+}
+/**
+ * 换行
+ * @param lineNumber 换行数，默认一行
+ */
 const newline = (lineNumber: number = 1) => {
   for (let index = 0; index < lineNumber; index++) {
     success();
   }
 };
+/**
+ * 返回箭头
+ */
 const arrow = () => {
   success("   ⇓");
 };
@@ -57,4 +72,5 @@ export {
   underlineAndBold,
   newline,
   arrow,
+  danger
 };

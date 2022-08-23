@@ -1,0 +1,10 @@
+[
+  {
+    "name": "npm官方",
+    "src": "http://www.npmjs.org"
+  },
+  {
+    "name": "淘宝",
+    "src": "https://registry.npm.taobao.org"
+  }
+]

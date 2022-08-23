@@ -80,11 +80,26 @@ const error = (...args) => {
 const underlineAndBold = (...args) => {
     return chalk__default["default"].underline.bold(...args);
 };
+/**
+ * 返回红色文字
+ * @param args 任意字符
+ * @returns
+ */
+const danger = (...args) => {
+    return chalk__default["default"].redBright(...args);
+};
+/**
+ * 换行
+ * @param lineNumber 换行数，默认一行
+ */
 const newline = (lineNumber = 1) => {
     for (let index = 0; index < lineNumber; index++) {
         success();
     }
 };
+/**
+ * 返回箭头
+ */
 const arrow = () => {
     success("   ⇓");
 };
@@ -584,8 +599,8 @@ const REGISTRY_PATH = fsPath__default["default"].join(CONFIG_DIR, 'registries.js
 const DEPLOY_PATH = fsPath__default["default"].join(CONFIG_DIR, 'deploys.json');
 
 const configs = {
-    registries: require(REGISTRY_PATH),
-    templates: require(TEMPLATE_PATH)
+    registries: fsExtra.existsSync(REGISTRY_PATH) ? require(REGISTRY_PATH) : [],
+    templates: fsExtra.existsSync(TEMPLATE_PATH) ? require(TEMPLATE_PATH) : []
 };
 
 const defineCommand = (command) => {
@@ -2478,25 +2493,23 @@ const ssh = new NodeSSH();
  * 开始打包成zip
  * @param sourcePath 文件路径
  */
-const bundle = async (sourcePath) => {
+const bundle = async (config) => {
     return new Promise((resolve, reject) => {
-        if (!fsExtra.existsSync(sourcePath)) {
-            error(`${underlineAndBold(sourcePath)}文件不存在`);
-            return reject(new Error(`${sourcePath}文件不存在`));
+        if (!fsExtra.existsSync(config.sourcePath)) {
+            return reject(new Error(`${config.sourcePath}文件不存在`));
         }
         const bundler = archiver__default["default"]("zip", {
             zlib: { level: 9 },
         });
-        const destPath = sourcePath + ".zip";
-        const output = fs__default["default"].createWriteStream(destPath);
+        const output = fs__default["default"].createWriteStream(config.bundleFilePath);
         output.on("close", (err) => {
             if (err) {
-                return reject(new Error(`${sourcePath}文件不存在`));
+                return reject(new Error(`${config.bundleFilePath}关闭错误 ${err}`));
             }
             return resolve(void 0);
         });
         bundler.pipe(output);
-        bundler.directory(sourcePath, "/");
+        bundler.directory(config.sourcePath, "/");
         bundler.finalize();
     });
 };
@@ -2531,7 +2544,7 @@ async function connectServer(config) {
 async function upload(config) {
     return new Promise(async (resolve, reject) => {
         try {
-            await ssh.putFile(config.sourcePath + ".zip", config.remotePath + `/${config.distDirName}.zip`);
+            await ssh.putFile(config.bundleFilePath, config.remotePath);
             resolve(void 0);
         }
         catch (err) {
@@ -2546,9 +2559,9 @@ async function upload(config) {
  */
 async function unzip(config) {
     return new Promise(async (resolve, reject) => {
-        const archiveFilename = `${config.distDirName}.zip`;
+        const archiveFilename = config.bundleFilename;
         await ssh.execCommand(`unzip -o ${archiveFilename} && rm -f ${archiveFilename}`, {
-            cwd: config.remotePath,
+            cwd: config.cwd,
             onStderr(chunk) {
                 reject(new Error(`解压错误 ${chunk.toString("utf-8")}`));
             },
@@ -2562,7 +2575,7 @@ async function unzip(config) {
  */
 async function deleteLocal(config) {
     try {
-        fsExtra.unlinkSync(config.sourcePath + ".zip");
+        fsExtra.unlinkSync(config.bundleFilePath);
     }
     catch (err) {
         throw new Error(`删除本地文件失败 err`);
@@ -2575,8 +2588,7 @@ async function stepLoading(task, message) {
         await task();
     }
     catch (e) {
-        loading.fail(e?.message || "未知异常");
-        // TODO 保存日志信息
+        loading.fail(danger(e?.message || "未知异常"));
         throw e;
     }
     finally {
@@ -2584,26 +2596,38 @@ async function stepLoading(task, message) {
     }
 }
 async function deploy(config) {
+    // 保存远程操作的目录
+    config.cwd = config.remotePath;
+    const bundleFilename = config.distDirName + '.zip';
+    const bundleFilePath = config.sourcePath + '.zip';
+    // 拼接路径信息
+    const remotePath = config.remotePath + `/${config.distDirName}.zip`;
+    // 更新config信息
+    config.bundleFilePath = bundleFilePath;
+    config.remotePath = remotePath;
+    config.bundleFilename = bundleFilename;
     try {
         // 第一步打包
-        await stepLoading(async () => bundle(config.sourcePath), "开始压缩...");
-        success("压缩完成");
+        await stepLoading(async () => bundle(config), "开始压缩...");
+        success(`压缩完成 ${underlineAndBold(bundleFilePath)}`);
         arrow();
         // 第二步连接服务器
         await stepLoading(async () => connectServer(config), "开始连接...");
-        success(`连接完成(${underlineAndBold(config.host + ":" + config.port)})`);
+        success(`连接完成 ${underlineAndBold(config.host + ":" + config.port)}`);
         arrow();
         // 第三步上传文件
         await stepLoading(async () => upload(config), "开始上传...");
-        success(`上传完成`);
+        success(`上传完成 ${underlineAndBold(config.sourcePath)}`);
         arrow();
         // 第四步解压缩
         await stepLoading(async () => unzip(config), "开始解压...");
-        success(`解压完成`);
+        success(`解压完成 ${underlineAndBold(config.remotePath)}`);
     }
     finally {
+        arrow();
         // 第五步删除文件
         await stepLoading(async () => deleteLocal(config), "删除本地...");
+        success(`删除完成 ${underlineAndBold(bundleFilePath)}`);
         // 手动释放资源
         ssh.isConnected() && ssh.dispose();
     }
@@ -2713,7 +2737,7 @@ var deployCommand = defineCommand({
                     validate: validEmpty,
                 },
             ];
-            if (options.ls || Object.keys(options).length === 0) {
+            if (options.ls) {
                 success(deployRegistry.data
                     .map((config, index) => index + 1 + ". " + config.name)
                     .join("\r\n"));
@@ -2771,33 +2795,47 @@ var deployCommand = defineCommand({
                 }
                 success(JSON.stringify(deployRegistry.get(options.detail), null, 2));
             }
-            else if (options.start) {
+            else if (options.start || Object.keys(options).length === 0) {
                 // TODO 执行部署命令
                 const configList = deployRegistry.data.map((item) => item.name);
                 const ans = await inquirer__default["default"].prompt([
                     {
                         name: "name",
                         type: "list",
+                        message: '部署配置',
                         choices: configList,
                     },
                     {
-                        name: "distDirName",
-                        type: "input",
-                        default: (params) => {
-                            return deployRegistry.get(params.name)?.distDirName || "";
-                        },
-                        validate: validEmpty,
+                        name: 'isConfirm',
+                        type: "confirm",
+                        message: (params) => {
+                            const record = deployRegistry.get(params.name);
+                            success('------------------------------');
+                            success('服务器地址: ' + record.host + ':' + record.port);
+                            success('登录用户: ' + record.username);
+                            success('本地路径: ' + fsPath.join(process.cwd(), record.distDirName));
+                            success('远程部署路径: ' + record.remotePath);
+                            success('------------------------------');
+                            return '是否部署:';
+                        }
                     },
                     {
                         name: "password",
                         type: "password",
+                        message: '服务器密码',
                         validate: validEmpty,
                         // 仅当选择了密钥，才需要输入
                         when: (params) => {
-                            return deployRegistry.get(params.name)?.mode === "password";
+                            return params.isConfirm && deployRegistry.get(params.name)?.mode === "password";
                         },
                     },
                 ]);
+                if (!ans.isConfirm) {
+                    newline();
+                    error("取消部署");
+                    return;
+                }
+                // TODO 确认配置，且提示是否需要修改
                 const record = deployRegistry.get(ans.name);
                 const deployConfig = {
                     ...record,
@@ -2806,10 +2844,19 @@ var deployCommand = defineCommand({
                 // 生成最后的路径
                 deployConfig.sourcePath = fsPath.join(process.cwd(), deployConfig.distDirName);
                 newline();
-                await deploy(deployConfig);
-                newline(2);
-                success("部署完成");
-                // 开始部署
+                try {
+                    // 开始部署
+                    const start = Date.now();
+                    await deploy(deployConfig);
+                    const end = Date.now();
+                    newline(2);
+                    success(`部署成功,耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
+                }
+                catch (err) {
+                    // TODO log日志输出
+                    newline(2);
+                    error(`部署失败 ${err}`);
+                }
             }
         });
     },
