@@ -82,6 +82,7 @@ export async function connectServer(config: DeployConfig) {
 export async function upload(config: DeployConfig) {
   return new Promise(async (resolve, reject) => {
     try {
+      // TODO 可能没有权限
       await ssh.putFile(
         config.bundleFilePath,
         config.remotePath

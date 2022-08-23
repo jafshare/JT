@@ -2544,6 +2544,7 @@ async function connectServer(config) {
 async function upload(config) {
     return new Promise(async (resolve, reject) => {
         try {
+            // TODO 可能没有权限
             await ssh.putFile(config.bundleFilePath, config.remotePath);
             resolve(void 0);
         }
