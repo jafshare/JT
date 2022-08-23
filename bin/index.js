@@ -7,25 +7,20 @@ var chalk = require('chalk');
 var commander = require('commander');
 var inquirer = require('inquirer');
 var fsExtra = require('fs-extra');
-var process$1 = require('node:process');
-var readline = require('node:readline');
-var onetime = require('onetime');
-var signalExit = require('signal-exit');
-var cliSpinners = require('cli-spinners');
-var wcwidth = require('wcwidth');
-var bl = require('bl');
+var ora = require('ora');
 var gitly = require('gitly');
 var node_buffer = require('node:buffer');
 var path = require('node:path');
 var childProcess = require('node:child_process');
+var process$1 = require('node:process');
 var crossSpawn = require('cross-spawn');
 var os = require('os');
 require('node:os');
+require('signal-exit');
 require('get-stream');
 require('merge-stream');
 var fs = require('fs');
 var makeDir = require('make-dir');
-var isStream$1 = require('is-stream');
 var shellEscape = require('shell-escape');
 var invariant = require('assert');
 var SSH2 = require('ssh2');
@@ -37,19 +32,14 @@ var figlet__default = /*#__PURE__*/_interopDefaultLegacy(figlet);
 var fsPath__default = /*#__PURE__*/_interopDefaultLegacy(fsPath);
 var chalk__default = /*#__PURE__*/_interopDefaultLegacy(chalk);
 var inquirer__default = /*#__PURE__*/_interopDefaultLegacy(inquirer);
-var process__default = /*#__PURE__*/_interopDefaultLegacy(process$1);
-var readline__default = /*#__PURE__*/_interopDefaultLegacy(readline);
-var onetime__default = /*#__PURE__*/_interopDefaultLegacy(onetime);
-var signalExit__default = /*#__PURE__*/_interopDefaultLegacy(signalExit);
-var cliSpinners__default = /*#__PURE__*/_interopDefaultLegacy(cliSpinners);
-var wcwidth__default = /*#__PURE__*/_interopDefaultLegacy(wcwidth);
+var ora__default = /*#__PURE__*/_interopDefaultLegacy(ora);
 var gitly__default = /*#__PURE__*/_interopDefaultLegacy(gitly);
 var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
 var childProcess__default = /*#__PURE__*/_interopDefaultLegacy(childProcess);
+var process__default = /*#__PURE__*/_interopDefaultLegacy(process$1);
 var crossSpawn__default = /*#__PURE__*/_interopDefaultLegacy(crossSpawn);
 var fs__default = /*#__PURE__*/_interopDefaultLegacy(fs);
 var makeDir__default = /*#__PURE__*/_interopDefaultLegacy(makeDir);
-var isStream__default = /*#__PURE__*/_interopDefaultLegacy(isStream$1);
 var shellEscape__default = /*#__PURE__*/_interopDefaultLegacy(shellEscape);
 var invariant__default = /*#__PURE__*/_interopDefaultLegacy(invariant);
 var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
@@ -106,483 +96,40 @@ const arrow = () => {
 
 const program = new commander.Command();
 
-const restoreCursor = onetime__default["default"](() => {
-	signalExit__default["default"](() => {
-		process__default["default"].stderr.write('\u001B[?25h');
-	}, {alwaysLast: true});
-});
-
-let isHidden = false;
-
-const cliCursor = {};
-
-cliCursor.show = (writableStream = process__default["default"].stderr) => {
-	if (!writableStream.isTTY) {
-		return;
-	}
-
-	isHidden = false;
-	writableStream.write('\u001B[?25h');
-};
-
-cliCursor.hide = (writableStream = process__default["default"].stderr) => {
-	if (!writableStream.isTTY) {
-		return;
-	}
-
-	restoreCursor();
-	isHidden = true;
-	writableStream.write('\u001B[?25l');
-};
-
-cliCursor.toggle = (force, writableStream) => {
-	if (force !== undefined) {
-		isHidden = force;
-	}
-
-	if (isHidden) {
-		cliCursor.show(writableStream);
-	} else {
-		cliCursor.hide(writableStream);
-	}
-};
-
-const logSymbols = {
-	info: 'ℹ️',
-	success: '✅',
-	warning: '⚠️',
-	error: '❌️'
-};
-
-function ansiRegex({onlyFirst = false} = {}) {
-	const pattern = [
-	    '[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]+)*|[a-zA-Z\\d]+(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)',
-		'(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))'
-	].join('|');
-
-	return new RegExp(pattern, onlyFirst ? undefined : 'g');
-}
-
-function stripAnsi(string) {
-	if (typeof string !== 'string') {
-		throw new TypeError(`Expected a \`string\`, got \`${typeof string}\``);
-	}
-
-	return string.replace(ansiRegex(), '');
-}
-
-function isInteractive({stream = process.stdout} = {}) {
-	return Boolean(
-		stream && stream.isTTY &&
-		process.env.TERM !== 'dumb' &&
-		!('CI' in process.env)
-	);
-}
-
-function isUnicodeSupported() {
-	if (process.platform !== 'win32') {
-		return process.env.TERM !== 'linux'; // Linux console (kernel)
-	}
-
-	return Boolean(process.env.CI) ||
-		Boolean(process.env.WT_SESSION) || // Windows Terminal
-		process.env.ConEmuTask === '{cmd::Cmder}' || // ConEmu and cmder
-		process.env.TERM_PROGRAM === 'vscode' ||
-		process.env.TERM === 'xterm-256color' ||
-		process.env.TERM === 'alacritty';
-}
-
-const TEXT = Symbol('text');
-const PREFIX_TEXT = Symbol('prefixText');
-const ASCII_ETX_CODE = 0x03; // Ctrl+C emits this code
-
-// TODO: Use class fields when ESLint 8 is out.
-
-class StdinDiscarder {
-	constructor() {
-		this.requests = 0;
-
-		this.mutedStream = new bl.BufferListStream();
-		this.mutedStream.pipe(process__default["default"].stdout);
-
-		const self = this; // eslint-disable-line unicorn/no-this-assignment
-		this.ourEmit = function (event, data, ...args) {
-			const {stdin} = process__default["default"];
-			if (self.requests > 0 || stdin.emit === self.ourEmit) {
-				if (event === 'keypress') { // Fixes readline behavior
-					return;
-				}
-
-				if (event === 'data' && data.includes(ASCII_ETX_CODE)) {
-					process__default["default"].emit('SIGINT');
-				}
-
-				Reflect.apply(self.oldEmit, this, [event, data, ...args]);
-			} else {
-				Reflect.apply(process__default["default"].stdin.emit, this, [event, data, ...args]);
-			}
-		};
-	}
-
-	start() {
-		this.requests++;
-
-		if (this.requests === 1) {
-			this.realStart();
-		}
-	}
-
-	stop() {
-		if (this.requests <= 0) {
-			throw new Error('`stop` called more times than `start`');
-		}
-
-		this.requests--;
-
-		if (this.requests === 0) {
-			this.realStop();
-		}
-	}
-
-	realStart() {
-		// No known way to make it work reliably on Windows
-		if (process__default["default"].platform === 'win32') {
-			return;
-		}
-
-		this.rl = readline__default["default"].createInterface({
-			input: process__default["default"].stdin,
-			output: this.mutedStream,
-		});
-
-		this.rl.on('SIGINT', () => {
-			if (process__default["default"].listenerCount('SIGINT') === 0) {
-				process__default["default"].emit('SIGINT');
-			} else {
-				this.rl.close();
-				process__default["default"].kill(process__default["default"].pid, 'SIGINT');
-			}
-		});
-	}
-
-	realStop() {
-		if (process__default["default"].platform === 'win32') {
-			return;
-		}
-
-		this.rl.close();
-		this.rl = undefined;
-	}
-}
-
-let stdinDiscarder;
-
-class Ora {
-	constructor(options) {
-		if (!stdinDiscarder) {
-			stdinDiscarder = new StdinDiscarder();
-		}
-
-		if (typeof options === 'string') {
-			options = {
-				text: options,
-			};
-		}
-
-		this.options = {
-			text: '',
-			color: 'cyan',
-			stream: process__default["default"].stderr,
-			discardStdin: true,
-			...options,
-		};
-
-		this.spinner = this.options.spinner;
-
-		this.color = this.options.color;
-		this.hideCursor = this.options.hideCursor !== false;
-		this.interval = this.options.interval || this.spinner.interval || 100;
-		this.stream = this.options.stream;
-		this.id = undefined;
-		this.isEnabled = typeof this.options.isEnabled === 'boolean' ? this.options.isEnabled : isInteractive({stream: this.stream});
-		this.isSilent = typeof this.options.isSilent === 'boolean' ? this.options.isSilent : false;
-
-		// Set *after* `this.stream`
-		this.text = this.options.text;
-		this.prefixText = this.options.prefixText;
-		this.linesToClear = 0;
-		this.indent = this.options.indent;
-		this.discardStdin = this.options.discardStdin;
-		this.isDiscardingStdin = false;
-	}
-
-	get indent() {
-		return this._indent;
-	}
-
-	set indent(indent = 0) {
-		if (!(indent >= 0 && Number.isInteger(indent))) {
-			throw new Error('The `indent` option must be an integer from 0 and up');
-		}
-
-		this._indent = indent;
-		this.updateLineCount();
-	}
-
-	_updateInterval(interval) {
-		if (interval !== undefined) {
-			this.interval = interval;
-		}
-	}
-
-	get spinner() {
-		return this._spinner;
-	}
-
-	set spinner(spinner) {
-		this.frameIndex = 0;
-
-		if (typeof spinner === 'object') {
-			if (spinner.frames === undefined) {
-				throw new Error('The given spinner must have a `frames` property');
-			}
-
-			this._spinner = spinner;
-		} else if (!isUnicodeSupported()) {
-			this._spinner = cliSpinners__default["default"].line;
-		} else if (spinner === undefined) {
-			// Set default spinner
-			this._spinner = cliSpinners__default["default"].dots;
-		} else if (spinner !== 'default' && cliSpinners__default["default"][spinner]) {
-			this._spinner = cliSpinners__default["default"][spinner];
-		} else {
-			throw new Error(`There is no built-in spinner named '${spinner}'. See https://github.com/sindresorhus/cli-spinners/blob/main/spinners.json for a full list.`);
-		}
-
-		this._updateInterval(this._spinner.interval);
-	}
-
-	get text() {
-		return this[TEXT];
-	}
-
-	set text(value) {
-		this[TEXT] = value;
-		this.updateLineCount();
-	}
-
-	get prefixText() {
-		return this[PREFIX_TEXT];
-	}
-
-	set prefixText(value) {
-		this[PREFIX_TEXT] = value;
-		this.updateLineCount();
-	}
-
-	get isSpinning() {
-		return this.id !== undefined;
-	}
-
-	getFullPrefixText(prefixText = this[PREFIX_TEXT], postfix = ' ') {
-		if (typeof prefixText === 'string') {
-			return prefixText + postfix;
-		}
-
-		if (typeof prefixText === 'function') {
-			return prefixText() + postfix;
-		}
-
-		return '';
-	}
-
-	updateLineCount() {
-		const columns = this.stream.columns || 80;
-		const fullPrefixText = this.getFullPrefixText(this.prefixText, '-');
-		this.lineCount = 0;
-		for (const line of stripAnsi(' '.repeat(this.indent) + fullPrefixText + '--' + this[TEXT]).split('\n')) {
-			this.lineCount += Math.max(1, Math.ceil(wcwidth__default["default"](line) / columns));
-		}
-	}
-
-	get isEnabled() {
-		return this._isEnabled && !this.isSilent;
-	}
-
-	set isEnabled(value) {
-		if (typeof value !== 'boolean') {
-			throw new TypeError('The `isEnabled` option must be a boolean');
-		}
-
-		this._isEnabled = value;
-	}
-
-	get isSilent() {
-		return this._isSilent;
-	}
-
-	set isSilent(value) {
-		if (typeof value !== 'boolean') {
-			throw new TypeError('The `isSilent` option must be a boolean');
-		}
-
-		this._isSilent = value;
-	}
-
-	frame() {
-		const {frames} = this.spinner;
-		let frame = frames[this.frameIndex];
-
-		if (this.color) {
-			frame = chalk__default["default"][this.color](frame);
-		}
-
-		this.frameIndex = ++this.frameIndex % frames.length;
-		const fullPrefixText = (typeof this.prefixText === 'string' && this.prefixText !== '') ? this.prefixText + ' ' : '';
-		const fullText = typeof this.text === 'string' ? ' ' + this.text : '';
-
-		return fullPrefixText + frame + fullText;
-	}
-
-	clear() {
-		if (!this.isEnabled || !this.stream.isTTY) {
-			return this;
-		}
-
-		this.stream.cursorTo(0);
-
-		for (let index = 0; index < this.linesToClear; index++) {
-			if (index > 0) {
-				this.stream.moveCursor(0, -1);
-			}
-
-			this.stream.clearLine(1);
-		}
-
-		if (this.indent || this.lastIndent !== this.indent) {
-			this.stream.cursorTo(this.indent);
-		}
-
-		this.lastIndent = this.indent;
-		this.linesToClear = 0;
-
-		return this;
-	}
-
-	render() {
-		if (this.isSilent) {
-			return this;
-		}
-
-		this.clear();
-		this.stream.write(this.frame());
-		this.linesToClear = this.lineCount;
-
-		return this;
-	}
-
-	start(text) {
-		if (text) {
-			this.text = text;
-		}
-
-		if (this.isSilent) {
-			return this;
-		}
-
-		if (!this.isEnabled) {
-			if (this.text) {
-				this.stream.write(`- ${this.text}\n`);
-			}
-
-			return this;
-		}
-
-		if (this.isSpinning) {
-			return this;
-		}
-
-		if (this.hideCursor) {
-			cliCursor.hide(this.stream);
-		}
-
-		if (this.discardStdin && process__default["default"].stdin.isTTY) {
-			this.isDiscardingStdin = true;
-			stdinDiscarder.start();
-		}
-
-		this.render();
-		this.id = setInterval(this.render.bind(this), this.interval);
-
-		return this;
-	}
-
-	stop() {
-		if (!this.isEnabled) {
-			return this;
-		}
-
-		clearInterval(this.id);
-		this.id = undefined;
-		this.frameIndex = 0;
-		this.clear();
-		if (this.hideCursor) {
-			cliCursor.show(this.stream);
-		}
-
-		if (this.discardStdin && process__default["default"].stdin.isTTY && this.isDiscardingStdin) {
-			stdinDiscarder.stop();
-			this.isDiscardingStdin = false;
-		}
-
-		return this;
-	}
-
-	succeed(text) {
-		return this.stopAndPersist({symbol: logSymbols.success, text});
-	}
-
-	fail(text) {
-		return this.stopAndPersist({symbol: logSymbols.error, text});
-	}
-
-	warn(text) {
-		return this.stopAndPersist({symbol: logSymbols.warning, text});
-	}
-
-	info(text) {
-		return this.stopAndPersist({symbol: logSymbols.info, text});
-	}
-
-	stopAndPersist(options = {}) {
-		if (this.isSilent) {
-			return this;
-		}
-
-		const prefixText = options.prefixText || this.prefixText;
-		const text = options.text || this.text;
-		const fullText = (typeof text === 'string') ? ' ' + text : '';
-
-		this.stop();
-		this.stream.write(`${this.getFullPrefixText(prefixText, ' ')}${options.symbol || ' '}${fullText}\n`);
-
-		return this;
-	}
-}
-
-function ora(options) {
-	return new Ora(options);
+/*! *****************************************************************************
+Copyright (c) Microsoft Corporation.
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+***************************************************************************** */
+
+function __awaiter(thisArg, _arguments, P, generator) {
+    function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
+    return new (P || (P = Promise))(function (resolve, reject) {
+        function fulfilled(value) { try { step(generator.next(value)); } catch (e) { reject(e); } }
+        function rejected(value) { try { step(generator["throw"](value)); } catch (e) { reject(e); } }
+        function step(result) { result.done ? resolve(result.value) : adopt(result.value).then(fulfilled, rejected); }
+        step((generator = generator.apply(thisArg, _arguments || [])).next());
+    });
 }
 
 /**
  * 模板下载
  */
-const gitDownload = async (src, dest, loadingText) => {
-    return new Promise(async (resolve, reject) => {
-        const loading = loadingText ? ora(loadingText) : null;
+const gitDownload = (src, dest, loadingText) => __awaiter(void 0, void 0, void 0, function* () {
+    return new Promise((resolve, reject) => __awaiter(void 0, void 0, void 0, function* () {
+        const loading = loadingText ? ora__default["default"](loadingText) : null;
         loading && loading.start();
         try {
-            await gitly__default["default"](src, dest, { temp: TEMP_PATH });
+            yield gitly__default["default"](src, dest, { temp: TEMP_PATH });
             loading && loading.succeed();
             resolve(undefined);
         }
@@ -590,8 +137,8 @@ const gitDownload = async (src, dest, loadingText) => {
             loading && loading.fail('下载错误' + error);
             reject(error);
         }
-    });
-};
+    }));
+});
 
 const CONFIG_DIR = fsPath__default["default"].join(__dirname, "../config");
 const TEMPLATE_PATH = fsPath__default["default"].join(CONFIG_DIR, 'templates.json');
@@ -622,82 +169,84 @@ const COMMAND = {
     DEPLOY_ALIAS: 'dp',
 };
 
-async function createByTemplate() {
-    const templates = configs.templates;
-    const defaultProjectName = 'jt-template';
-    const answers = await inquirer__default["default"].prompt([
-        {
-            type: "input",
-            name: "projectName",
-            message: "项目名称：",
-            default: defaultProjectName
-        },
-        {
-            type: 'list',
-            name: 'template',
-            message: "项目模板：",
-            choices: templates.map((item) => item.name)
-        }
-    ]);
-    const template = templates.find((item) => item.name === answers.template);
-    const projectPath = answers.projectName;
-    const pathExists = fsExtra.existsSync(projectPath);
-    // 下载模板
-    try {
-        if (pathExists) {
-            const ans = await inquirer__default["default"].prompt([
-                {
-                    name: 'isOverride',
-                    type: 'confirm',
-                    message: `${answers.projectName} 已存在,是否继续`
-                },
-                {
-                    name: 'mode',
-                    type: 'list',
-                    message: '请选择覆盖模式',
-                    choices: ['override', 'replace']
+function createByTemplate() {
+    return __awaiter(this, void 0, void 0, function* () {
+        const templates = configs.templates;
+        const defaultProjectName = 'jt-template';
+        const answers = yield inquirer__default["default"].prompt([
+            {
+                type: "input",
+                name: "projectName",
+                message: "项目名称：",
+                default: defaultProjectName
+            },
+            {
+                type: 'list',
+                name: 'template',
+                message: "项目模板：",
+                choices: templates.map((item) => item.name)
+            }
+        ]);
+        const template = templates.find((item) => item.name === answers.template);
+        const projectPath = answers.projectName;
+        const pathExists = fsExtra.existsSync(projectPath);
+        // 下载模板
+        try {
+            if (pathExists) {
+                const ans = yield inquirer__default["default"].prompt([
+                    {
+                        name: 'isOverride',
+                        type: 'confirm',
+                        message: `${answers.projectName} 已存在,是否继续`
+                    },
+                    {
+                        name: 'mode',
+                        type: 'list',
+                        message: '请选择覆盖模式',
+                        choices: ['override', 'replace']
+                    }
+                ]);
+                if (!ans.isOverride) {
+                    return;
                 }
-            ]);
-            if (!ans.isOverride) {
-                return;
-            }
-            else {
-                // 如果确认覆盖，选择模式，如果是override,则不做处理,如果是replace，则替换整个目录
-                if (ans.mode === 'replace') {
-                    // 先删除目录，再创建
-                    fsExtra.rmSync(projectPath, { recursive: true });
-                    fsExtra.mkdirSync(projectPath);
+                else {
+                    // 如果确认覆盖，选择模式，如果是override,则不做处理,如果是replace，则替换整个目录
+                    if (ans.mode === 'replace') {
+                        // 先删除目录，再创建
+                        fsExtra.rmSync(projectPath, { recursive: true });
+                        fsExtra.mkdirSync(projectPath);
+                    }
                 }
             }
-        }
-        const specifyDirIdentity = '%';
-        let specifyDir = '';
-        let sourceUrl = template.local ? template.localPath : template.remoteSrc;
-        // 判断是否有指定目录的语法
-        if (sourceUrl?.includes(specifyDirIdentity)) {
-            [sourceUrl, specifyDir] = sourceUrl.split(specifyDirIdentity);
-            // 需要支持多层文件夹语法
-            if (specifyDir) {
-                specifyDir = fsPath__default["default"].join(...specifyDir.split('.'));
+            const specifyDirIdentity = '%';
+            let specifyDir = '';
+            let sourceUrl = template.local ? template.localPath : template.remoteSrc;
+            // 判断是否有指定目录的语法
+            if (sourceUrl === null || sourceUrl === void 0 ? void 0 : sourceUrl.includes(specifyDirIdentity)) {
+                [sourceUrl, specifyDir] = sourceUrl.split(specifyDirIdentity);
+                // 需要支持多层文件夹语法
+                if (specifyDir) {
+                    specifyDir = fsPath__default["default"].join(...specifyDir.split('.'));
+                }
             }
+            // 创建目录
+            !pathExists && (yield fsExtra.mkdir(answers.projectName));
+            // 如果是远程代码则拉取仓库
+            !template.local && (yield gitDownload(sourceUrl, fsPath__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...'));
+            const sourcePath = template.local ? fsPath__default["default"].join(sourceUrl, specifyDir) : fsPath__default["default"].join(TEMP_PATH, answers.projectName, specifyDir);
+            // 拷贝文件
+            yield fsExtra.copy(sourcePath, answers.projectName);
+            // 删除缓存文件
+            yield fsExtra.remove(fsPath__default["default"].join(TEMP_PATH, answers.projectName));
         }
-        // 创建目录
-        !pathExists && await fsExtra.mkdir(answers.projectName);
-        // 如果是远程代码则拉取仓库
-        !template.local && await gitDownload(sourceUrl, fsPath__default["default"].join(TEMP_PATH, answers.projectName), '模板下载中...');
-        const sourcePath = template.local ? fsPath__default["default"].join(sourceUrl, specifyDir) : fsPath__default["default"].join(TEMP_PATH, answers.projectName, specifyDir);
-        // 拷贝文件
-        await fsExtra.copy(sourcePath, answers.projectName);
-        // 删除缓存文件
-        await fsExtra.remove(fsPath__default["default"].join(TEMP_PATH, answers.projectName));
-    }
-    catch (err) {
-        error(err);
-        return;
-    }
-    // TODO 后续处理
-    success('\r\n创建完成！');
-    info(`  cd ${answers.projectName}\r\n`);
+        catch (err) {
+            error(err);
+            return;
+        }
+        // TODO 后续处理
+        success('\r\n创建完成！');
+        info(`  cd ${answers.projectName}\r\n`);
+    });
 }
 var initCommand = defineCommand({
     name: COMMAND.INIT, use: (ctx) => {
@@ -1437,9 +986,9 @@ var registryCommand = defineCommand({
         // 更改淘宝源
         ctx.program.command(COMMAND.CHANGE_REGISTRY).alias(COMMAND.CHANGE_REGISTRY_ALIAS)
             .description('更换为淘宝下载源')
-            .action(async () => {
+            .action(() => __awaiter(void 0, void 0, void 0, function* () {
             const registries = configs.registries;
-            const ans = await inquirer__default["default"].prompt([
+            const ans = yield inquirer__default["default"].prompt([
                 {
                     name: 'registry',
                     type: "list",
@@ -1463,7 +1012,7 @@ var registryCommand = defineCommand({
             catch (err) {
                 error(err);
             }
-        });
+        }));
     }
 });
 
@@ -1471,12 +1020,10 @@ var registryCommand = defineCommand({
  * 存储基本类，封装基本的存储的功能
  */
 class BaseRegistry {
-    storePath;
-    idPropName;
-    data = [];
     constructor(storePath, idPropName = "id") {
         this.storePath = storePath;
         this.idPropName = idPropName;
+        this.data = [];
         this.load();
     }
     /**
@@ -1578,13 +1125,13 @@ var templateCommand = defineCommand({
             .option('-u, --update <templateName>', "更新模板")
             .option('-c, --clear', "清空模板")
             .option('-d, --detail <templateName>', "模板详情")
-            .action(async (options) => {
+            .action((options) => __awaiter(void 0, void 0, void 0, function* () {
             if (options.ls || Object.keys(options).length === 0) {
                 success(templateRegistry.data.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'));
             }
             else if (options.add) {
                 //填写模板信息
-                const ans = await inquirer__default["default"].prompt([
+                const ans = yield inquirer__default["default"].prompt([
                     {
                         name: 'templateName',
                         type: "input",
@@ -1630,7 +1177,7 @@ var templateCommand = defineCommand({
                 }
                 const record = templateRegistry.get(options.update);
                 //填写模板信息
-                const ans = await inquirer__default["default"].prompt([
+                const ans = yield inquirer__default["default"].prompt([
                     {
                         name: 'templateName',
                         type: "input",
@@ -1691,7 +1238,7 @@ var templateCommand = defineCommand({
                 }
                 success(JSON.stringify(templateRegistry.get(options.detail), null, 2));
             }
-        });
+        }));
     }
 });
 
@@ -1714,8 +1261,8 @@ const validEmpty = (input) => {
  */
 const withDefault = (questions, initial) => {
     return questions.map(question => {
-        if (initial && initial?.[question.name]) {
-            question.default = initial?.[question.name];
+        if (initial && (initial === null || initial === void 0 ? void 0 : initial[question.name])) {
+            question.default = initial === null || initial === void 0 ? void 0 : initial[question.name];
         }
         return question;
     });
@@ -1937,7 +1484,7 @@ async function makeDirectoryWithSftp(path, sftp) {
     }
     try {
         await new Promise((resolve, reject) => {
-            sftp.mkdir(path, (err) => {
+            sftp.mkdir(path, err => {
                 if (err) {
                     reject(err);
                 }
@@ -1981,24 +1528,18 @@ class NodeSSH {
         else {
             throw new invariant.AssertionError({ message: 'Either config.host or config.sock must be provided' });
         }
-        if (config.privateKey != null || config.privateKeyPath != null) {
-            if (config.privateKey != null) {
-                invariant__default["default"](typeof config.privateKey === 'string', 'config.privateKey must be a valid string');
-                invariant__default["default"](config.privateKeyPath == null, 'config.privateKeyPath must not be specified when config.privateKey is specified');
-            }
-            else if (config.privateKeyPath != null) {
-                invariant__default["default"](typeof config.privateKeyPath === 'string', 'config.privateKeyPath must be a valid string');
-                invariant__default["default"](config.privateKey == null, 'config.privateKey must not be specified when config.privateKeyPath is specified');
-            }
-            invariant__default["default"](config.passphrase == null || typeof config.passphrase === 'string', 'config.passphrase must be null or a valid string');
-            if (config.privateKeyPath != null) {
+        if (config.privateKey != null) {
+            invariant__default["default"](typeof config.privateKey === 'string', 'config.privateKey must be a valid string');
+            invariant__default["default"](config.passphrase == null || typeof config.passphrase === 'string', 'config.passphrase must be a valid string');
+            if (!((config.privateKey.includes('BEGIN') && config.privateKey.includes('KEY')) ||
+                config.privateKey.includes('PuTTY-User-Key-File-2'))) {
                 // Must be an fs path
                 try {
-                    config.privateKey = await readFile(config.privateKeyPath);
+                    config.privateKey = await readFile(config.privateKey);
                 }
                 catch (err) {
                     if (err != null && err.code === 'ENOENT') {
-                        throw new invariant.AssertionError({ message: 'config.privateKeyPath does not exist at given fs path' });
+                        throw new invariant.AssertionError({ message: 'config.privateKey does not exist at given fs path' });
                     }
                     throw err;
                 }
@@ -2055,9 +1596,7 @@ class NodeSSH {
     async requestShell(options) {
         const connection = this.getConnection();
         return new Promise((resolve, reject) => {
-            connection.on('error', reject);
             const callback = (err, res) => {
-                connection.removeListener('error', reject);
                 if (err) {
                     reject(err);
                 }
@@ -2090,9 +1629,7 @@ class NodeSSH {
     async requestSFTP() {
         const connection = this.getConnection();
         return new Promise((resolve, reject) => {
-            connection.on('error', reject);
             connection.sftp((err, res) => {
-                connection.removeListener('error', reject);
                 if (err) {
                     reject(err);
                 }
@@ -2116,7 +1653,7 @@ class NodeSSH {
         invariant__default["default"](typeof givenCommand === 'string', 'command must be a valid string');
         invariant__default["default"](options != null && typeof options === 'object', 'options must be a valid object');
         invariant__default["default"](options.cwd == null || typeof options.cwd === 'string', 'options.cwd must be a valid string');
-        invariant__default["default"](options.stdin == null || typeof options.stdin === 'string' || isStream__default["default"].readable(options.stdin), 'options.stdin must be a valid string or readable stream');
+        invariant__default["default"](options.stdin == null || typeof options.stdin === 'string', 'options.stdin must be a valid string');
         invariant__default["default"](options.execOptions == null || typeof options.execOptions === 'object', 'options.execOptions must be a valid object');
         invariant__default["default"](options.encoding == null || typeof options.encoding === 'string', 'options.encoding must be a valid string');
         invariant__default["default"](options.onChannel == null || typeof options.onChannel === 'function', 'options.onChannel must be a valid function');
@@ -2129,9 +1666,7 @@ class NodeSSH {
         const connection = this.getConnection();
         const output = { stdout: [], stderr: [] };
         return new Promise((resolve, reject) => {
-            connection.on('error', reject);
             connection.exec(command, options.execOptions != null ? options.execOptions : {}, (err, channel) => {
-                connection.removeListener('error', reject);
                 if (err) {
                     reject(err);
                     return;
@@ -2149,25 +1684,16 @@ class NodeSSH {
                         options.onStderr(chunk);
                     output.stderr.push(chunk.toString(options.encoding));
                 });
-                if (options.stdin != null) {
-                    if (isStream__default["default"].readable(options.stdin)) {
-                        options.stdin.pipe(channel, {
-                            end: true,
-                        });
-                    }
-                    else {
-                        channel.write(options.stdin);
-                        channel.end();
-                    }
+                if (options.stdin) {
+                    channel.write(options.stdin);
                 }
-                else {
-                    channel.end();
-                }
+                // Close stdout:
+                channel.end();
                 let code = null;
                 let signal = null;
                 channel.on('exit', (code_, signal_) => {
-                    code = code_ !== null && code_ !== void 0 ? code_ : null;
-                    signal = signal_ !== null && signal_ !== void 0 ? signal_ : null;
+                    code = code_ || null;
+                    signal = signal_ || null;
                 });
                 channel.on('close', () => {
                     resolve({
@@ -2234,7 +1760,7 @@ class NodeSSH {
         const sftp = givenSftp || (await this.requestSFTP());
         try {
             await new Promise((resolve, reject) => {
-                sftp.fastGet(unixifyPath(remoteFile), localFile, transferOptions || {}, (err) => {
+                sftp.fastGet(unixifyPath(remoteFile), localFile, transferOptions || {}, err => {
                     if (err) {
                         reject(err);
                     }
@@ -2255,15 +1781,15 @@ class NodeSSH {
         invariant__default["default"](typeof remoteFile === 'string', 'remoteFile must be a valid string');
         invariant__default["default"](givenSftp == null || typeof givenSftp === 'object', 'sftp must be a valid object');
         invariant__default["default"](transferOptions == null || typeof transferOptions === 'object', 'transferOptions must be a valid object');
-        invariant__default["default"](await new Promise((resolve) => {
-            fs__default["default"].access(localFile, fs__default["default"].constants.R_OK, (err) => {
+        invariant__default["default"](await new Promise(resolve => {
+            fs__default["default"].access(localFile, fs__default["default"].constants.R_OK, err => {
                 resolve(err === null);
             });
         }), `localFile does not exist at ${localFile}`);
         const sftp = givenSftp || (await this.requestSFTP());
         const putFile = (retry) => {
             return new Promise((resolve, reject) => {
-                sftp.fastPut(localFile, unixifyPath(remoteFile), transferOptions || {}, (err) => {
+                sftp.fastPut(localFile, unixifyPath(remoteFile), transferOptions || {}, err => {
                     if (err == null) {
                         resolve();
                         return;
@@ -2299,7 +1825,7 @@ class NodeSSH {
         const queue = new PromiseQueue({ concurrency });
         try {
             await new Promise((resolve, reject) => {
-                files.forEach((file) => {
+                files.forEach(file => {
                     queue
                         .add(async () => {
                         await this.putFile(file.local, file.remote, sftp, transferOptions);
@@ -2325,7 +1851,7 @@ class NodeSSH {
     async putDirectory(localDirectory, remoteDirectory, { concurrency = DEFAULT_CONCURRENCY, sftp: givenSftp = null, transferOptions = {}, recursive = true, tick = DEFAULT_TICK, validate = DEFAULT_VALIDATE, } = {}) {
         invariant__default["default"](typeof localDirectory === 'string' && localDirectory, 'localDirectory must be a string');
         invariant__default["default"](typeof remoteDirectory === 'string' && remoteDirectory, 'remoteDirectory must be a string');
-        const localDirectoryStat = await new Promise((resolve) => {
+        const localDirectoryStat = await new Promise(resolve => {
             fs__default["default"].stat(localDirectory, (err, stat) => {
                 resolve(stat || null);
             });
@@ -2337,8 +1863,8 @@ class NodeSSH {
             recursive,
             validate,
         });
-        const files = scanned.files.map((item) => fsPath__default["default"].relative(localDirectory, item));
-        const directories = scanned.directories.map((item) => fsPath__default["default"].relative(localDirectory, item));
+        const files = scanned.files.map(item => fsPath__default["default"].relative(localDirectory, item));
+        const directories = scanned.directories.map(item => fsPath__default["default"].relative(localDirectory, item));
         // Sort shortest to longest
         directories.sort((a, b) => a.length - b.length);
         let failed = false;
@@ -2346,7 +1872,7 @@ class NodeSSH {
             // Do the directories first.
             await new Promise((resolve, reject) => {
                 const queue = new PromiseQueue({ concurrency });
-                directories.forEach((directory) => {
+                directories.forEach(directory => {
                     queue
                         .add(async () => {
                         await this.mkdir(fsPath__default["default"].join(remoteDirectory, directory), 'sftp', sftp);
@@ -2358,7 +1884,7 @@ class NodeSSH {
             // and now the files
             await new Promise((resolve, reject) => {
                 const queue = new PromiseQueue({ concurrency });
-                files.forEach((file) => {
+                files.forEach(file => {
                     queue
                         .add(async () => {
                         const localFile = fsPath__default["default"].join(localDirectory, file);
@@ -2387,7 +1913,7 @@ class NodeSSH {
     async getDirectory(localDirectory, remoteDirectory, { concurrency = DEFAULT_CONCURRENCY, sftp: givenSftp = null, transferOptions = {}, recursive = true, tick = DEFAULT_TICK, validate = DEFAULT_VALIDATE, } = {}) {
         invariant__default["default"](typeof localDirectory === 'string' && localDirectory, 'localDirectory must be a string');
         invariant__default["default"](typeof remoteDirectory === 'string' && remoteDirectory, 'remoteDirectory must be a string');
-        const localDirectoryStat = await new Promise((resolve) => {
+        const localDirectoryStat = await new Promise(resolve => {
             fs__default["default"].stat(localDirectory, (err, stat) => {
                 resolve(stat || null);
             });
@@ -2413,7 +1939,7 @@ class NodeSSH {
                                 reject(err);
                             }
                             else {
-                                resolve(res.map((item) => item.filename));
+                                resolve(res.map(item => item.filename));
                             }
                         });
                     });
@@ -2433,8 +1959,8 @@ class NodeSSH {
                 },
             },
         });
-        const files = scanned.files.map((item) => fsPath__default["default"].relative(remoteDirectory, item));
-        const directories = scanned.directories.map((item) => fsPath__default["default"].relative(remoteDirectory, item));
+        const files = scanned.files.map(item => fsPath__default["default"].relative(remoteDirectory, item));
+        const directories = scanned.directories.map(item => fsPath__default["default"].relative(remoteDirectory, item));
         // Sort shortest to longest
         directories.sort((a, b) => a.length - b.length);
         let failed = false;
@@ -2442,7 +1968,7 @@ class NodeSSH {
             // Do the directories first.
             await new Promise((resolve, reject) => {
                 const queue = new PromiseQueue({ concurrency });
-                directories.forEach((directory) => {
+                directories.forEach(directory => {
                     queue
                         .add(async () => {
                         await makeDir__default["default"](fsPath__default["default"].join(localDirectory, directory));
@@ -2454,7 +1980,7 @@ class NodeSSH {
             // and now the files
             await new Promise((resolve, reject) => {
                 const queue = new PromiseQueue({ concurrency });
-                files.forEach((file) => {
+                files.forEach(file => {
                     queue
                         .add(async () => {
                         const localFile = fsPath__default["default"].join(localDirectory, file);
@@ -2493,7 +2019,7 @@ const ssh = new NodeSSH();
  * 开始打包成zip
  * @param sourcePath 文件路径
  */
-const bundle = async (config) => {
+const bundle = (config) => __awaiter(void 0, void 0, void 0, function* () {
     return new Promise((resolve, reject) => {
         if (!fsExtra.existsSync(config.sourcePath)) {
             return reject(new Error(`${config.sourcePath}文件不存在`));
@@ -2512,45 +2038,49 @@ const bundle = async (config) => {
         bundler.directory(config.sourcePath, "/");
         bundler.finalize();
     });
-};
+});
 /**
  * 连接服务器
  * @param config ssh配置
  * @returns
  */
-async function connectServer(config) {
-    const { username, password, host, port, privateKeyPath } = config;
-    const sshConfig = {
-        username,
-        password,
-        host,
-        port,
-        privateKeyPath,
-    };
-    return new Promise(async (resolve, reject) => {
-        try {
-            await ssh.connect(sshConfig);
-            resolve(void 0);
-        }
-        catch (err) {
-            reject(new Error(`连接服务器失败 ${err}`));
-        }
+function connectServer(config) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const { username, password, host, port, privateKeyPath } = config;
+        const sshConfig = {
+            username,
+            password,
+            host,
+            port,
+            privateKeyPath,
+        };
+        return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+            try {
+                yield ssh.connect(sshConfig);
+                resolve(void 0);
+            }
+            catch (err) {
+                reject(new Error(`连接服务器失败 ${err}`));
+            }
+        }));
     });
 }
 /**
  * 上传文件
  * @param config ssh配置
  */
-async function upload(config) {
-    return new Promise(async (resolve, reject) => {
-        try {
-            // TODO 可能没有权限
-            await ssh.putFile(config.bundleFilePath, config.remotePath);
-            resolve(void 0);
-        }
-        catch (err) {
-            reject(new Error(`上传文件失败 ${err}`));
-        }
+function upload(config) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+            try {
+                // TODO 可能没有权限
+                yield ssh.putFile(config.bundleFilePath, config.remotePath);
+                resolve(void 0);
+            }
+            catch (err) {
+                reject(new Error(`上传文件失败 ${err}`));
+            }
+        }));
     });
 }
 /**
@@ -2558,85 +2088,90 @@ async function upload(config) {
  * @param config 配置
  * @returns
  */
-async function unzip(config) {
-    return new Promise(async (resolve, reject) => {
-        const archiveFilename = config.bundleFilename;
-        await ssh.execCommand(`unzip -o ${archiveFilename} && rm -f ${archiveFilename}`, {
-            cwd: config.cwd,
-            onStderr(chunk) {
-                reject(new Error(`解压错误 ${chunk.toString("utf-8")}`));
-            },
-        });
-        resolve(void 0);
+function unzip(config) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
+            const archiveFilename = config.bundleFilename;
+            yield ssh.execCommand(`unzip -o ${archiveFilename} && rm -f ${archiveFilename}`, {
+                cwd: config.cwd,
+                onStderr(chunk) {
+                    reject(new Error(`解压错误 ${chunk.toString("utf-8")}`));
+                },
+            });
+            resolve(void 0);
+        }));
     });
 }
 /**
  * 删除本地文件
  * @param config 配置
  */
-async function deleteLocal(config) {
-    try {
-        fsExtra.unlinkSync(config.bundleFilePath);
-    }
-    catch (err) {
-        throw new Error(`删除本地文件失败 err`);
-    }
+function deleteLocal(config) {
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            fsExtra.unlinkSync(config.bundleFilePath);
+        }
+        catch (err) {
+            throw new Error(`删除本地文件失败 err`);
+        }
+    });
 }
-async function stepLoading(task, message) {
-    const loading = ora(message);
-    loading.start();
-    try {
-        await task();
-    }
-    catch (e) {
-        loading.fail(danger(e?.message || "未知异常"));
-        throw e;
-    }
-    finally {
-        loading.stop();
-    }
+function stepLoading(task, message) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const loading = ora__default["default"](message);
+        loading.start();
+        try {
+            yield task();
+        }
+        catch (e) {
+            loading.fail(danger((e === null || e === void 0 ? void 0 : e.message) || "未知异常"));
+            throw e;
+        }
+        finally {
+            loading.stop();
+        }
+    });
 }
-async function deploy(config) {
-    // 保存远程操作的目录
-    config.cwd = config.remotePath;
-    const bundleFilename = config.distDirName + '.zip';
-    const bundleFilePath = config.sourcePath + '.zip';
-    // 拼接路径信息
-    const remotePath = config.remotePath + `/${config.distDirName}.zip`;
-    // 更新config信息
-    config.bundleFilePath = bundleFilePath;
-    config.remotePath = remotePath;
-    config.bundleFilename = bundleFilename;
-    try {
-        // 第一步打包
-        await stepLoading(async () => bundle(config), "开始压缩...");
-        success(`压缩完成 ${underlineAndBold(bundleFilePath)}`);
-        arrow();
-        // 第二步连接服务器
-        await stepLoading(async () => connectServer(config), "开始连接...");
-        success(`连接完成 ${underlineAndBold(config.host + ":" + config.port)}`);
-        arrow();
-        // 第三步上传文件
-        await stepLoading(async () => upload(config), "开始上传...");
-        success(`上传完成 ${underlineAndBold(config.sourcePath)}`);
-        arrow();
-        // 第四步解压缩
-        await stepLoading(async () => unzip(config), "开始解压...");
-        success(`解压完成 ${underlineAndBold(config.remotePath)}`);
-    }
-    finally {
-        arrow();
-        // 第五步删除文件
-        await stepLoading(async () => deleteLocal(config), "删除本地...");
-        success(`删除完成 ${underlineAndBold(bundleFilePath)}`);
-        // 手动释放资源
-        ssh.isConnected() && ssh.dispose();
-    }
+function deploy(config) {
+    return __awaiter(this, void 0, void 0, function* () {
+        // 保存远程操作的目录
+        config.cwd = config.remotePath;
+        const bundleFilename = config.distDirName + '.zip';
+        const bundleFilePath = config.sourcePath + '.zip';
+        // 拼接路径信息
+        const remotePath = config.remotePath + `/${config.distDirName}.zip`;
+        // 更新config信息
+        config.bundleFilePath = bundleFilePath;
+        config.remotePath = remotePath;
+        config.bundleFilename = bundleFilename;
+        try {
+            // 第一步打包
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return bundle(config); }), "开始压缩...");
+            success(`压缩完成 ${underlineAndBold(bundleFilePath)}`);
+            arrow();
+            // 第二步连接服务器
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return connectServer(config); }), "开始连接...");
+            success(`连接完成 ${underlineAndBold(config.host + ":" + config.port)}`);
+            arrow();
+            // 第三步上传文件
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return upload(config); }), "开始上传...");
+            success(`上传完成 ${underlineAndBold(config.sourcePath)}`);
+            arrow();
+            // 第四步解压缩
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return unzip(config); }), "开始解压...");
+            success(`解压完成 ${underlineAndBold(config.remotePath)}`);
+        }
+        finally {
+            arrow();
+            // 第五步删除文件
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return deleteLocal(config); }), "删除本地...");
+            success(`删除完成 ${underlineAndBold(bundleFilePath)}`);
+            // 手动释放资源
+            ssh.isConnected() && ssh.dispose();
+        }
+    });
 }
 
-/**
- * 参考项目: https://github.com/dadaiwei/fe-deploy-cli
- */
 // 部署相关的页面
 class DeployRegistry extends BaseRegistry {
     constructor() {
@@ -2658,7 +2193,7 @@ var deployCommand = defineCommand({
             .option("-c, --clear", "清空部署配置")
             .option("-d, --detail <deployName>", "配置详情")
             .option("-s, --start", "执行部署")
-            .action(async (options) => {
+            .action((options) => __awaiter(void 0, void 0, void 0, function* () {
             const questions = [
                 {
                     name: "name",
@@ -2745,7 +2280,7 @@ var deployCommand = defineCommand({
             }
             else if (options.add) {
                 // 添加部署配置
-                const ans = await inquirer__default["default"].prompt(questions);
+                const ans = yield inquirer__default["default"].prompt(questions);
                 deployRegistry.add({
                     name: ans.name,
                     mode: ans.mode,
@@ -2764,7 +2299,7 @@ var deployCommand = defineCommand({
                     return;
                 }
                 const record = deployRegistry.get(options.update);
-                const ans = await inquirer__default["default"].prompt(withDefault(questions, record));
+                const ans = yield inquirer__default["default"].prompt(withDefault(questions, record));
                 deployRegistry.updated(options.update, {
                     name: ans.name,
                     mode: ans.mode,
@@ -2799,7 +2334,7 @@ var deployCommand = defineCommand({
             else if (options.start || Object.keys(options).length === 0) {
                 // TODO 执行部署命令
                 const configList = deployRegistry.data.map((item) => item.name);
-                const ans = await inquirer__default["default"].prompt([
+                const ans = yield inquirer__default["default"].prompt([
                     {
                         name: "name",
                         type: "list",
@@ -2827,7 +2362,8 @@ var deployCommand = defineCommand({
                         validate: validEmpty,
                         // 仅当选择了密钥，才需要输入
                         when: (params) => {
-                            return params.isConfirm && deployRegistry.get(params.name)?.mode === "password";
+                            var _a;
+                            return params.isConfirm && ((_a = deployRegistry.get(params.name)) === null || _a === void 0 ? void 0 : _a.mode) === "password";
                         },
                     },
                 ]);
@@ -2838,17 +2374,14 @@ var deployCommand = defineCommand({
                 }
                 // TODO 确认配置，且提示是否需要修改
                 const record = deployRegistry.get(ans.name);
-                const deployConfig = {
-                    ...record,
-                    ...ans,
-                };
+                const deployConfig = Object.assign(Object.assign({}, record), ans);
                 // 生成最后的路径
                 deployConfig.sourcePath = fsPath.join(process.cwd(), deployConfig.distDirName);
                 newline();
                 try {
                     // 开始部署
                     const start = Date.now();
-                    await deploy(deployConfig);
+                    yield deploy(deployConfig);
                     const end = Date.now();
                     newline(2);
                     success(`部署成功,耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
@@ -2859,7 +2392,7 @@ var deployCommand = defineCommand({
                     error(`部署失败 ${err}`);
                 }
             }
-        });
+        }));
     },
 });
 

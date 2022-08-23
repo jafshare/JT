@@ -207,11 +207,6 @@ ansi-regex@^5.0.1:
   resolved "https://registry.nlark.com/ansi-regex/download/ansi-regex-5.0.1.tgz#082cb2c89c9fe8659a311a53bd6a4dc5301db304"
   integrity sha1-CCyyyJyf6GWaMRpTvWpNxTAdswQ=
 
-ansi-regex@^6.0.1:
-  version "6.0.1"
-  resolved "https://registry.nlark.com/ansi-regex/download/ansi-regex-6.0.1.tgz#3183e38fae9a65d7cb5e53945cd5897d0260a06a"
-  integrity sha1-MYPjj66aZdfLXlOUXNWJfQJgoGo=
-
 ansi-styles@^4.1.0:
   version "4.3.0"
   resolved "https://registry.nlark.com/ansi-styles/download/ansi-styles-4.3.0.tgz?cache=0&sync_timestamp=1618997040758&other_urls=https%3A%2F%2Fregistry.nlark.com%2Fansi-styles%2Fdownload%2Fansi-styles-4.3.0.tgz#edd803628ae71c04c85ae7a0906edad34b648937"
@@ -253,7 +248,7 @@ arg@^4.1.0:
   resolved "https://registry.nlark.com/arg/download/arg-4.1.3.tgz#269fc7ad5b8e42cb63c896d5666017261c144089"
   integrity sha1-Jp/HrVuOQstjyJbVZmAXJhwUQIk=
 
-asn1@^0.2.4:
+asn1@~0.2.0:
   version "0.2.6"
   resolved "https://registry.npmmirror.com/asn1/-/asn1-0.2.6.tgz#0d3a7bb6e64e02a90c0303b31f292868ea09a08d"
   integrity sha512-ix/FxPn0MDjeyJ7i/yoHGFt/EX6LyNbxSEhPPXODPL+KB0VPk86UYfL0lMdy+KCnv+fmvIzySwaK5COwqVbWTQ==
@@ -304,15 +299,6 @@ bl@^4.0.3, bl@^4.1.0:
     inherits "^2.0.4"
     readable-stream "^3.4.0"
 
-bl@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.npm.taobao.org/bl/download/bl-5.0.0.tgz#6928804a41e9da9034868e1c50ca88f21f57aea2"
-  integrity sha1-aSiASkHp2pA0ho4cUMqI8h9XrqI=
-  dependencies:
-    buffer "^6.0.3"
-    inherits "^2.0.4"
-    readable-stream "^3.4.0"
-
 brace-expansion@^1.1.7:
   version "1.1.11"
   resolved "https://registry.npmmirror.com/brace-expansion/-/brace-expansion-1.1.11.tgz#3c7fcbf529d87226f3d2f52b966ff5271eb441dd"
@@ -340,19 +326,6 @@ buffer@^5.5.0:
   dependencies:
     base64-js "^1.3.1"
     ieee754 "^1.1.13"
-
-buffer@^6.0.3:
-  version "6.0.3"
-  resolved "https://registry.npm.taobao.org/buffer/download/buffer-6.0.3.tgz#2ace578459cc8fbe2a70aaa8f52ee63b6a74c6c6"
-  integrity sha1-Ks5XhFnMj74qcKqo9S7mO2p0xsY=
-  dependencies:
-    base64-js "^1.3.1"
-    ieee754 "^1.2.1"
-
-buildcheck@0.0.3:
-  version "0.0.3"
-  resolved "https://registry.npmmirror.com/buildcheck/-/buildcheck-0.0.3.tgz#70451897a95d80f7807e68fc412eb2e7e35ff4d5"
-  integrity sha512-pziaA+p/wdVImfcbsZLNF32EiWyujlQLwolMqUQE8xpKNOH7KmZQaY8sXN7DGOEzPAElo9QTaeNRfGnf3iOJbA==
 
 builtin-modules@^3.1.0:
   version "3.2.0"
@@ -384,14 +357,7 @@ cli-cursor@^3.1.0:
   dependencies:
     restore-cursor "^3.1.0"
 
-cli-cursor@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.nlark.com/cli-cursor/download/cli-cursor-4.0.0.tgz#3cecfe3734bf4fe02a8361cbdc0f6fe28c6a57ea"
-  integrity sha1-POz+NzS/T+Aqg2HL3A9v4oxqV+o=
-  dependencies:
-    restore-cursor "^4.0.0"
-
-cli-spinners@^2.5.0, cli-spinners@^2.6.0:
+cli-spinners@^2.5.0:
   version "2.6.1"
   resolved "https://registry.npmmirror.com/cli-spinners/download/cli-spinners-2.6.1.tgz#adc954ebe281c37a6319bfa401e6dd2488ffb70d"
   integrity sha1-rclU6+KBw3pjGb+kAebdJIj/tw0=
@@ -454,14 +420,6 @@ core-util-is@~1.0.0:
   version "1.0.3"
   resolved "https://registry.npmmirror.com/core-util-is/-/core-util-is-1.0.3.tgz#a6042d3634c2b27e9328f837b965fac83808db85"
   integrity sha512-ZQBvi1DcpJ4GDqanjucZ2Hj3wEO5pZDS89BWbkcrvdxksJorwUDDZamX9ldFkp9aw2lmBDLgkObEA4DWNJ9FYQ==
-
-cpu-features@~0.0.4:
-  version "0.0.4"
-  resolved "https://registry.npmmirror.com/cpu-features/-/cpu-features-0.0.4.tgz#0023475bb4f4c525869c162e4108099e35bf19d8"
-  integrity sha512-fKiZ/zp1mUwQbnzb9IghXtHtDoTMtNeb8oYGx6kX2SYfhnG0HNdBEBIzB9b5KlXu5DQPhfy3mInbBxFcgwAr3A==
-  dependencies:
-    buildcheck "0.0.3"
-    nan "^2.15.0"
 
 crc-32@^1.2.0:
   version "1.2.2"
@@ -713,7 +671,7 @@ iconv-lite@^0.4.24:
   dependencies:
     safer-buffer ">= 2.1.2 < 3"
 
-ieee754@^1.1.13, ieee754@^1.2.1:
+ieee754@^1.1.13:
   version "1.2.1"
   resolved "https://registry.nlark.com/ieee754/download/ieee754-1.2.1.tgz#8eb7a10a63fff25d15a57b001586d177d1b0d352"
   integrity sha1-jrehCmP/8l0VpXsAFYbRd9Gw01I=
@@ -768,20 +726,10 @@ is-interactive@^1.0.0:
   resolved "https://registry.nlark.com/is-interactive/download/is-interactive-1.0.0.tgz#cea6e6ae5c870a7b0a0004070b7b587e0252912e"
   integrity sha1-zqbmrlyHCnsKAAQHC3tYfgJSkS4=
 
-is-interactive@^2.0.0:
-  version "2.0.0"
-  resolved "https://registry.nlark.com/is-interactive/download/is-interactive-2.0.0.tgz#40c57614593826da1100ade6059778d597f16e90"
-  integrity sha1-QMV2FFk4JtoRAK3mBZd41ZfxbpA=
-
 is-module@^1.0.0:
   version "1.0.0"
   resolved "https://registry.nlark.com/is-module/download/is-module-1.0.0.tgz#3258fb69f78c14d5b815d664336b4cffb6441591"
   integrity sha1-Mlj7afeMFNW4FdZkM2tM/7ZEFZE=
-
-is-stream@^2.0.0:
-  version "2.0.1"
-  resolved "https://registry.npmmirror.com/is-stream/-/is-stream-2.0.1.tgz#fac1e3d53b97ad5a9d0ae9cef2389f5810a5c077"
-  integrity sha512-hFoiJiTl63nn+kstHGBtewWSKnQLpyb155KHheA1l39uvtO9nWIop1p3udqPcUd/xbF1VLMO4n7OI6p7RbngDg==
 
 is-stream@^3.0.0:
   version "3.0.0"
@@ -792,11 +740,6 @@ is-unicode-supported@^0.1.0:
   version "0.1.0"
   resolved "https://registry.npmmirror.com/is-unicode-supported/download/is-unicode-supported-0.1.0.tgz#3f26c76a809593b52bfa2ecb5710ed2779b522a7"
   integrity sha1-PybHaoCVk7Ur+i7LVxDtJ3m1Iqc=
-
-is-unicode-supported@^1.0.0, is-unicode-supported@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.npmmirror.com/is-unicode-supported/download/is-unicode-supported-1.1.0.tgz#9127b71f9fa82f52ca5c20e982e7bec0ee31ee1e"
-  integrity sha1-kSe3H5+oL1LKXCDpgue+wO4x7h4=
 
 isarray@~1.0.0:
   version "1.0.0"
@@ -883,14 +826,6 @@ log-symbols@^4.1.0:
     chalk "^4.1.0"
     is-unicode-supported "^0.1.0"
 
-log-symbols@^5.0.0:
-  version "5.0.0"
-  resolved "https://registry.npm.taobao.org/log-symbols/download/log-symbols-5.0.0.tgz?cache=0&sync_timestamp=1618723443432&other_urls=https%3A%2F%2Fregistry.npm.taobao.org%2Flog-symbols%2Fdownload%2Flog-symbols-5.0.0.tgz#7720d3c6a56c365e1f658916069ba18d941092ca"
-  integrity sha1-dyDTxqVsNl4fZYkWBpuhjZQQkso=
-  dependencies:
-    chalk "^4.1.0"
-    is-unicode-supported "^1.0.0"
-
 make-dir@^3.0.2, make-dir@^3.1.0:
   version "3.1.0"
   resolved "https://registry.npm.taobao.org/make-dir/download/make-dir-3.1.0.tgz#415e967046b3a7f1d185277d84aa58203726a13f"
@@ -969,22 +904,16 @@ mute-stream@0.0.8:
   resolved "https://registry.nlark.com/mute-stream/download/mute-stream-0.0.8.tgz#1630c42b2251ff81e2a283de96a5497ea92e5e0d"
   integrity sha1-FjDEKyJR/4HiooPelqVJfqkuXg0=
 
-nan@^2.15.0, nan@^2.16.0:
-  version "2.16.0"
-  resolved "https://registry.npmmirror.com/nan/-/nan-2.16.0.tgz#664f43e45460fb98faf00edca0bb0d7b8dce7916"
-  integrity sha512-UdAqHyFngu7TfQKsCBgAA6pWDkT8MAO7d0jyOecVhN5354xbLqdn8mV9Tat9gepAupm0bt2DbeaSC8vS52MuFA==
-
-node-ssh@^13.0.0:
-  version "13.0.0"
-  resolved "https://registry.npmmirror.com/node-ssh/-/node-ssh-13.0.0.tgz#5e24ea6ce9c73168544f26d680d8a867f07843ea"
-  integrity sha512-8yfPvuB8z1M5rXFR8Z1Tl0a0M43N64VjZfjXRwOGCcImFphuXhMPniPksf1FkVj9djKbpHvLUMIVS399H9yCSQ==
+node-ssh@11.1.1:
+  version "11.1.1"
+  resolved "https://registry.npmmirror.com/node-ssh/-/node-ssh-11.1.1.tgz#b7ed0a82963d34c6e8c007723f83f626ef5b19e0"
+  integrity sha512-B3Tb3t54nCj2PyA8vnUMeH19Z2hybJzg5n4t9mRCOTfVGwGlJrv0frDjhPjisTAg3JplJiSxzfImOTMvFPkraQ==
   dependencies:
-    is-stream "^2.0.0"
     make-dir "^3.1.0"
     sb-promise-queue "^2.1.0"
     sb-scandir "^3.1.0"
     shell-escape "^0.2.0"
-    ssh2 "^1.5.0"
+    ssh2 "^0.8.9"
 
 normalize-path@^3.0.0:
   version "3.0.0"
@@ -1019,7 +948,7 @@ onetime@^6.0.0:
   dependencies:
     mimic-fn "^4.0.0"
 
-ora@^5.4.1:
+ora@5.4.1, ora@^5.4.1:
   version "5.4.1"
   resolved "https://registry.nlark.com/ora/download/ora-5.4.1.tgz#1b2678426af4ac4a509008e5e4ac9e9959db9e18"
   integrity sha1-GyZ4Qmr0rEpQkAjl5KyemVnbnhg=
@@ -1032,21 +961,6 @@ ora@^5.4.1:
     is-unicode-supported "^0.1.0"
     log-symbols "^4.1.0"
     strip-ansi "^6.0.0"
-    wcwidth "^1.0.1"
-
-ora@^6.0.1:
-  version "6.0.1"
-  resolved "https://registry.nlark.com/ora/download/ora-6.0.1.tgz#68caa9fd6c485a40d6f46c50a3940fa3df99c7f3"
-  integrity sha1-aMqp/WxIWkDW9GxQo5QPo9+Zx/M=
-  dependencies:
-    bl "^5.0.0"
-    chalk "^4.1.2"
-    cli-cursor "^4.0.0"
-    cli-spinners "^2.6.0"
-    is-interactive "^2.0.0"
-    is-unicode-supported "^1.1.0"
-    log-symbols "^5.0.0"
-    strip-ansi "^7.0.1"
     wcwidth "^1.0.1"
 
 os-tmpdir@~1.0.2:
@@ -1195,14 +1109,6 @@ restore-cursor@^3.1.0:
     onetime "^5.1.0"
     signal-exit "^3.0.2"
 
-restore-cursor@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.nlark.com/restore-cursor/download/restore-cursor-4.0.0.tgz?cache=0&other_urls=https%3A%2F%2Fregistry.nlark.com%2Frestore-cursor%2Fdownload%2Frestore-cursor-4.0.0.tgz#519560a4318975096def6e609d44100edaa4ccb9"
-  integrity sha1-UZVgpDGJdQlt725gnUQQDtqkzLk=
-  dependencies:
-    onetime "^5.1.0"
-    signal-exit "^3.0.2"
-
 rollup-plugin-typescript2@^0.31.0:
   version "0.31.0"
   resolved "https://registry.npmmirror.com/rollup-plugin-typescript2/download/rollup-plugin-typescript2-0.31.0.tgz#7d08ad0cac52d1f4b1ebc6f655e4f1e6f838a7de"
@@ -1288,16 +1194,26 @@ signal-exit@^3.0.2, signal-exit@^3.0.5:
   resolved "https://registry.npmmirror.com/signal-exit/download/signal-exit-3.0.6.tgz?cache=0&sync_timestamp=1637255932963&other_urls=https%3A%2F%2Fregistry.npmmirror.com%2Fsignal-exit%2Fdownload%2Fsignal-exit-3.0.6.tgz#24e630c4b0f03fea446a2bd299e62b4a6ca8d0af"
   integrity sha512-sDl4qMFpijcGw22U5w63KmD3cZJfBuFlVNbVMKje2keoKML7X2UzWbc4XrmEbDwg0NXJc3yv4/ox7b+JWb57kQ==
 
-ssh2@^1.5.0:
-  version "1.11.0"
-  resolved "https://registry.npmmirror.com/ssh2/-/ssh2-1.11.0.tgz#ce60186216971e12f6deb553dcf82322498fe2e4"
-  integrity sha512-nfg0wZWGSsfUe/IBJkXVll3PEZ//YH2guww+mP88gTpuSU4FtZN7zu9JoeTGOyCNx2dTDtT9fOpWwlzyj4uOOw==
+ssh2-streams@~0.4.10:
+  version "0.4.10"
+  resolved "https://registry.npmmirror.com/ssh2-streams/-/ssh2-streams-0.4.10.tgz#48ef7e8a0e39d8f2921c30521d56dacb31d23a34"
+  integrity sha512-8pnlMjvnIZJvmTzUIIA5nT4jr2ZWNNVHwyXfMGdRJbug9TpI3kd99ffglgfSWqujVv/0gxwMsDn9j9RVst8yhQ==
   dependencies:
-    asn1 "^0.2.4"
+    asn1 "~0.2.0"
     bcrypt-pbkdf "^1.0.2"
-  optionalDependencies:
-    cpu-features "~0.0.4"
-    nan "^2.16.0"
+    streamsearch "~0.1.2"
+
+ssh2@^0.8.9:
+  version "0.8.9"
+  resolved "https://registry.npmmirror.com/ssh2/-/ssh2-0.8.9.tgz#54da3a6c4ba3daf0d8477a538a481326091815f3"
+  integrity sha512-GmoNPxWDMkVpMFa9LVVzQZHF6EW3WKmBwL+4/GeILf2hFmix5Isxm7Amamo8o7bHiU0tC+wXsGcUXOxp8ChPaw==
+  dependencies:
+    ssh2-streams "~0.4.10"
+
+streamsearch@~0.1.2:
+  version "0.1.2"
+  resolved "https://registry.npmmirror.com/streamsearch/-/streamsearch-0.1.2.tgz#808b9d0e56fc273d809ba57338e929919a1a9f1a"
+  integrity sha512-jos8u++JKm0ARcSUTAZXOVC0mSox7Bhn6sBgty73P1f3JGf7yG2clTbBNHUdde/kdvP2FESam+vM6l8jBrNxHA==
 
 string-width@^4.1.0:
   version "4.2.3"
@@ -1328,13 +1244,6 @@ strip-ansi@^6.0.0, strip-ansi@^6.0.1:
   integrity sha1-nibGPTD1NEPpSJSVshBdN7Z6hdk=
   dependencies:
     ansi-regex "^5.0.1"
-
-strip-ansi@^7.0.1:
-  version "7.0.1"
-  resolved "https://registry.npmmirror.com/strip-ansi/download/strip-ansi-7.0.1.tgz#61740a08ce36b61e50e65653f07060d000975fb2"
-  integrity sha1-YXQKCM42th5Q5lZT8HBg0ACXX7I=
-  dependencies:
-    ansi-regex "^6.0.1"
 
 strip-final-newline@^3.0.0:
   version "3.0.0"
