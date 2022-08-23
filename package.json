@@ -1,9 +1,8 @@
 {
-  "name": "jt",
+  "name": "jtcommand",
   "version": "1.0.0",
   "description": "",
   "author": "HunterJiang",
-  "license": "ISC",
   "main": "bin/index.js",
   "bin": {
     "jt": "./bin/index.js"

@@ -29,8 +29,13 @@ jobs:
         with:
           node-version: 16
           registry-url: https://registry.npmjs.org/
-      - run: npm install
-      - run: npm run build
-      - run: npm publish
+      - name: 安装yarn
+        run: npm i -g yarn
+      - name: 安装依赖
+        run: yarn
+      - name: 打包
+        run: yarn build
+      - name: 发布npm包
+        run: npm publish
         env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}} # npm的token信息
