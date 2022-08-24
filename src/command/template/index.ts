@@ -14,6 +14,14 @@ class TemplateRegistry extends BaseRegistry<Template>{
   }
 }
 const templateRegistry = new TemplateRegistry()
+const chooseTemplate = async () => {
+  return inquirer.prompt({
+    name: 'name',
+    type: 'list',
+    message: '选择模板',
+    choices: templateRegistry.data.map(item => item.name)
+  });
+}
 export default defineCommand({
   name: COMMAND.CHANGE_REGISTRY,
   use: (ctx) => {
@@ -22,10 +30,10 @@ export default defineCommand({
       .description('模板功能')
       .option('-l, --ls', "列出所有模板信息")
       .option('-a, --add', "新增模板")
-      .option('-r, --rm <templateName>', "删除模板")
-      .option('-u, --update <templateName>', "更新模板")
+      .option('-r, --rm [模板名称]', "删除模板")
+      .option('-u, --update [模板名称]', "更新模板")
       .option('-c, --clear', "清空模板")
-      .option('-d, --detail <templateName>', "模板详情")
+      .option('-d, --detail [模板名称]', "模板详情")
       .action(async (options) => {
         if (options.ls || Object.keys(options).length === 0) {
           success(templateRegistry.data.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'))
@@ -68,13 +76,20 @@ export default defineCommand({
             }
           ])
           templateRegistry.add({ name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url })
-          success(`新增模板[${ans.templateName}]`)
+          success(`新增模板${underlineAndBold(ans.templateName)}`)
         } else if (options.update) {
-          if (!templateRegistry.exists(options.update)) {
-            error(`模板[${options.update}]不存在`)
+          let id = options.update
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            if (templateRegistry.data.length === 0) return success()
+            const ans = await chooseTemplate();
+            id = ans.name
+          }
+          if (!templateRegistry.exists(id)) {
+            error(`模板${underlineAndBold(id)}不存在`)
             return
           }
-          const record = templateRegistry.get(options.update)!
+          const record = templateRegistry.get(id)!
           //填写模板信息
           const ans = await inquirer.prompt([
             {
@@ -115,24 +130,44 @@ export default defineCommand({
               },
             }
           ])
-          templateRegistry.updated(options.update, { name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url })
-          success(`更新模板${underlineAndBold(options.update)}`)
+          templateRegistry.updated(id, { name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url })
+          success(`更新模板${underlineAndBold(id)}`)
         } else if (options.rm) {
-          if (!templateRegistry.exists(options.rm)) {
-            error(`模板${underlineAndBold(options.rm)}不存在`)
+          let id = options.rm
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            if (templateRegistry.data.length === 0) return success()
+            const ans = await chooseTemplate();
+            id = ans.name
+          }
+          if (!templateRegistry.exists(id)) {
+            error(`模板${underlineAndBold(id)}不存在`)
             return
           }
-          templateRegistry.remove(options.rm)
-          success(`已删除模板${underlineAndBold(options.rm)}`)
+          templateRegistry.remove(id)
+          success(`已删除模板${underlineAndBold(id)}`)
         } else if (options.clear) {
           templateRegistry.clear()
           success(`模板已清空`)
         } else if (options.detail) {
-          if (!templateRegistry.exists(options.detail)) {
-            error(`模板${underlineAndBold(options.detail)}不存在`)
+          let id = options.detail
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            if (templateRegistry.data.length === 0) return success()
+            const ans = await chooseTemplate();
+            id = ans.name
+          }
+
+          if (!templateRegistry.exists(id)) {
+            error(`模板${underlineAndBold(id)}不存在`)
             return
           }
-          success(JSON.stringify(templateRegistry.get(options.detail), null, 2))
+          const record = templateRegistry.get(id)!
+          success('------------------------------')
+          success('模板名称:', record.name)
+          success('是否本地模板:', record.local ? '是' : '否')
+          success('模板路径:', record.local ? record.localPath : record.remoteSrc)
+          success('------------------------------')
         }
       })
   }

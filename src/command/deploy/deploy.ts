@@ -1,8 +1,9 @@
-import { NodeSSH } from "node-ssh";
 import fs from "fs";
+import { exec } from "child_process";
+import { NodeSSH } from "node-ssh";
 import archiver from "archiver";
 import { existsSync, unlinkSync } from "fs-extra";
-import { arrow, danger, error, success, underlineAndBold } from "@/lib/log";
+import { arrow, danger, success, underlineAndBold } from "@/lib/log";
 import ora from "ora";
 const ssh = new NodeSSH();
 export type DeployConfig = {
@@ -124,13 +125,13 @@ export async function deleteLocal(config: DeployConfig) {
     throw new Error(`删除本地文件失败 err`);
   }
 }
-export async function stepLoading(task: () => Promise<any>, message: string) {
+export async function stepLoading(task: () => Promise<any>, message: string, errorMessage?: string) {
   const loading = ora(message);
   loading.start();
   try {
     await task();
   } catch (e: any) {
-    loading.fail(danger(e?.message || "未知异常"));
+    loading.fail(danger((errorMessage ?? e?.message) || "未知异常"));
     throw e;
   } finally {
     loading.stop();
@@ -171,4 +172,18 @@ export async function deploy(config: DeployConfig) {
     // 手动释放资源
     ssh.isConnected() && ssh.dispose();
   }
+}
+export async function execScript(cmd: string, opts?: { cwd?: string | undefined, tip?: string }) {
+  await stepLoading(async () => {
+    return new Promise((resolve, reject) => {
+      exec(cmd, { cwd: opts?.cwd }, (err, stdout, stderr) => {
+        if (err) {
+          return reject(err)
+        }
+        return resolve(void 0)
+      })
+    })
+  }, opts?.tip || '正在执行...', `执行${underlineAndBold(cmd)}失败`);
+  success(`执行完成 ${underlineAndBold(cmd)}`);
+  arrow();
 }

@@ -10,7 +10,7 @@ import { error, newline, success, underlineAndBold } from "@/lib/log";
 import defineCommand from "../defineCommand";
 import { BaseRegistry } from "../base/registry";
 import { validEmpty, withDefault } from "@/lib/inquirerUtils";
-import { deploy } from "./deploy";
+import { deploy, execScript } from "./deploy";
 export type DeployRecord = {
   name: string;
   // 连接模式 密码/密钥
@@ -27,6 +27,10 @@ export type DeployRecord = {
   distDirName: string;
   // 远程部署地址
   remotePath: string;
+  // 部署前脚本
+  beforeScript?: string;
+  // 部署后脚本
+  afterScript?: string;
 };
 // 部署相关的页面
 class DeployRegistry extends BaseRegistry<DeployRecord> {
@@ -34,8 +38,30 @@ class DeployRegistry extends BaseRegistry<DeployRecord> {
     super(DEPLOY_PATH, "name");
   }
 }
+const displayDeployInfo = (record: DeployRecord) => {
+  success('------------------------------')
+  success('配置名称:', record.name)
+  success('服务器地址:', record.host + ':' + record.port)
+  success('密钥模式:', record.mode === 'password' ? '密码' : '密钥')
+  success('登录用户:', record.username)
+  success('本地路径:', join(
+    process.cwd(),
+    record.distDirName
+  ))
+  success('远程部署路径:', record.remotePath)
+  success('部署前执行脚本:', (record.beforeScript || ""))
+  success('部署后执行脚本:', (record.afterScript || ""))
+  success('------------------------------')
+}
 const deployRegistry = new DeployRegistry();
-
+const chooseDeploy = async () => {
+  return inquirer.prompt({
+    name: 'name',
+    type: 'list',
+    message: '请选择配置',
+    choices: deployRegistry.data.map(item => item.name)
+  })
+}
 export default defineCommand({
   name: COMMAND.DEPLOY,
   use: (ctx) => {
@@ -45,11 +71,12 @@ export default defineCommand({
       .description("部署功能")
       .option("-l, --ls", "列出所有部署配置")
       .option("-a, --add", "添加部署配置")
-      .option("-r, --rm <deployName>", "删除部署配置")
-      .option("-u, --update <deployName>", "更新部署配置")
+      .option("-r, --rm [配置名称]", "删除部署配置")
+      .option("-u, --update [配置名称]", "更新部署配置")
       .option("-c, --clear", "清空部署配置")
-      .option("-d, --detail <deployName>", "配置详情")
+      .option("-d, --detail [配置名称]", "配置详情")
       .option("-s, --start", "执行部署")
+      .option("-p, --copy [配置名称]", "复制配置")
       .action(async (options) => {
         const questions: QuestionCollection<DeployRecord> = [
           {
@@ -62,8 +89,12 @@ export default defineCommand({
                 return "不能为空";
               }
               // 校验配置是否存在
-              if (options.add && deployRegistry.exists(input)) {
+              if ((options.add || options.copy) && deployRegistry.exists(input)) {
                 return "配置已存在";
+              }
+              // TODO 更新校验
+              if (options.update) {
+                return "配置已存在"
               }
               return true;
             },
@@ -71,7 +102,7 @@ export default defineCommand({
           {
             name: "mode",
             type: "list",
-            message: "请选择SSH模式",
+            message: "请选择密钥模式",
             choices: [
               { name: "密码", value: "password" },
               { name: "密钥", value: "privateKey" },
@@ -129,6 +160,16 @@ export default defineCommand({
             // 相当于默认名，每次执行命令都会重新询问
             validate: validEmpty,
           },
+          {
+            name: "beforeScript",
+            type: "input",
+            message: "部署前执行脚本",
+          },
+          {
+            name: "afterScript",
+            type: "input",
+            message: "部署后执行脚本",
+          },
         ];
         if (options.ls) {
           success(
@@ -139,53 +180,64 @@ export default defineCommand({
         } else if (options.add) {
           // 添加部署配置
           const ans = await inquirer.prompt(questions);
-          deployRegistry.add({
-            name: ans.name,
-            mode: ans.mode,
-            privateKeyPath: ans.privateKeyPath,
-            host: ans.host,
-            port: ans.port,
-            username: ans.username,
-            distDirName: ans.distDirName,
-            remotePath: ans.remotePath,
-          });
+          // 数据格式化
+          for (const key in ans) {
+            const k = key as NonNullable<keyof DeployRecord>
+            const value = ans[k]
+            if (typeof value === 'string') {
+              (ans as Record<string, any>)[k] = value
+            }
+          }
+          deployRegistry.add(ans);
           success(`新增配置${underlineAndBold(ans.name)}`);
         } else if (options.update) {
-          if (!deployRegistry.exists(options.update)) {
-            error(`配置${underlineAndBold(options.update)}不存在`);
+          let id = options.update
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            if (deployRegistry.data.length === 0) return success()
+            const ans = await chooseDeploy();
+            id = ans.name
+          }
+          if (!deployRegistry.exists(id)) {
+            error(`配置${underlineAndBold(id)}不存在`);
             return;
           }
-          const record = deployRegistry.get(options.update)!;
+          const record = deployRegistry.get(id)!;
           const ans = await inquirer.prompt(withDefault(questions, record));
-          deployRegistry.updated(options.update, {
-            name: ans.name,
-            mode: ans.mode,
-            privateKeyPath: ans.privateKeyPath,
-            host: ans.host,
-            port: ans.port,
-            username: ans.username,
-            distDirName: ans.distDirName,
-            remotePath: ans.remotePath,
-          });
-          success(`更新配置${underlineAndBold(options.update)}`);
+          deployRegistry.updated(id, ans);
+          success(`更新配置${underlineAndBold(id)}`);
         } else if (options.rm) {
-          if (!deployRegistry.exists(options.rm)) {
-            error(`配置${underlineAndBold(options.rm)}不存在`);
+          let id = options.rm
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            if (deployRegistry.data.length === 0) return success()
+            const ans = await chooseDeploy();
+            id = ans.name
+          }
+          if (!deployRegistry.exists(id)) {
+            error(`配置${underlineAndBold(id)}不存在`);
             return;
           }
-          deployRegistry.remove(options.rm);
-          success(`已删除配置${underlineAndBold(options.rm)}`);
+          deployRegistry.remove(id);
+          success(`已删除配置${underlineAndBold(id)}`);
         } else if (options.clear) {
           deployRegistry.clear();
           success(`配置已清空`);
         } else if (options.detail) {
-          if (!deployRegistry.exists(options.detail)) {
-            error(`配置${underlineAndBold(options.detail)}不存在`);
+          let id = options.detail
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            if (deployRegistry.data.length === 0) return success()
+            const ans = await chooseDeploy();
+            id = ans.name
+          }
+          if (!deployRegistry.exists(id)) {
+            error(`配置${underlineAndBold(id)}不存在`);
             return;
           }
-          success(JSON.stringify(deployRegistry.get(options.detail), null, 2));
+          displayDeployInfo(deployRegistry.get(id)!)
         } else if (options.start || Object.keys(options).length === 0) {
-          // TODO 执行部署命令
+          // 执行部署命令
           const configList = deployRegistry.data.map((item) => item.name);
           const ans = await inquirer.prompt([
             {
@@ -198,16 +250,7 @@ export default defineCommand({
               name: 'isConfirm',
               type: "confirm",
               message: (params) => {
-                const record = deployRegistry.get(params.name)!
-                success('------------------------------')
-                success('服务器地址: ' + record.host + ':' + record.port)
-                success('登录用户: ' + record.username)
-                success('本地路径: ' + join(
-                  process.cwd(),
-                  record.distDirName
-                ))
-                success('远程部署路径: ' + record.remotePath)
-                success('------------------------------')
+                displayDeployInfo(deployRegistry.get(params.name)!)
                 return '是否部署:'
               }
             },
@@ -245,15 +288,48 @@ export default defineCommand({
           try {
             // 开始部署
             const start = Date.now();
+            // 运行部署前脚本
+            if (deployConfig.beforeScript) {
+              await execScript(deployConfig.beforeScript, { cwd: process.cwd(), tip: `正在执行${underlineAndBold(deployConfig.beforeScript)} ...` })
+            }
             await deploy(deployConfig as any);
+            if (deployConfig.afterScript) {
+              // 运行部署后脚本
+              await execScript(deployConfig.afterScript, { cwd: process.cwd(), tip: `正在执行${underlineAndBold(deployConfig.afterScript)} ...` })
+            }
             const end = Date.now();
             newline(2);
-            success(`部署成功,耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
+            success(`部署成功,总耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
           } catch (err) {
             // TODO log日志输出
             newline(2);
             error(`部署失败 ${err}`);
           }
+        } else if (options.copy) {
+          let id = options.copy
+          // 如果未提供配置名称，则提供选择
+          if (typeof id === 'boolean') {
+            const ans = await inquirer.prompt({
+              name: 'name',
+              type: 'list',
+              message: '选择配置',
+              choices: deployRegistry.data.map(item => item.name)
+            });
+            id = ans.name
+          }
+          const record = deployRegistry.get(id)!
+          // 添加部署配置
+          const ans = await inquirer.prompt(withDefault(questions, record));
+          // 数据格式化
+          for (const key in ans) {
+            const k = key as NonNullable<keyof DeployRecord>
+            const value = ans[k]
+            if (typeof value === 'string') {
+              (ans as Record<string, any>)[k] = value
+            }
+          }
+          deployRegistry.add(ans);
+          success(`新增配置${underlineAndBold(ans.name)}`);
         }
       });
   },

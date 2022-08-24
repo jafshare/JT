@@ -1,5 +1,7 @@
 import path from 'path'
-const VERSION = '0.0.1'
+// @ts-ignore
+import pkg from '../../package.json'
+const VERSION = 'V' + pkg.version
 const PROJECT_NAME = 'jt'
 const TEMP_DIR_NAME = '.temp'
 const TEMP_PATH = path.join(__dirname, '..', TEMP_DIR_NAME)

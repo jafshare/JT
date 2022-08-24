@@ -20,6 +20,7 @@ require('signal-exit');
 require('get-stream');
 require('merge-stream');
 var fs = require('fs');
+var child_process = require('child_process');
 var makeDir = require('make-dir');
 var shellEscape = require('shell-escape');
 var invariant = require('assert');
@@ -45,7 +46,68 @@ var invariant__default = /*#__PURE__*/_interopDefaultLegacy(invariant);
 var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
 var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
 
-const VERSION = '0.0.1';
+var name = "jtcommand";
+var version = "1.0.5";
+var description = "";
+var author = "HunterJiang";
+var main = "bin/index.js";
+var bin = {
+	jt: "./bin/index.js"
+};
+var repository = {
+	type: "git",
+	url: "https://github.com/jafshare/JT"
+};
+var scripts = {
+	test: "ts-node src/index.ts",
+	dev: "rollup -c -w",
+	build: "rollup -c",
+	link: "yarn link",
+	unlink: "yarn unlink"
+};
+var dependencies = {
+	"@types/archiver": "^5.3.1",
+	archiver: "^5.3.1",
+	chalk: "^4.1.2",
+	commander: "^8.3.0",
+	execa: "^6.0.0",
+	figlet: "^1.5.2",
+	"fs-extra": "^10.0.0",
+	gitly: "^2.2.1",
+	inquirer: "^8.2.0",
+	"node-ssh": "11.1.1",
+	ora: "5.4.1"
+};
+var devDependencies = {
+	"@rollup/plugin-json": "^4.1.0",
+	"@rollup/plugin-node-resolve": "^13.0.6",
+	"@types/chalk": "^2.2.0",
+	"@types/commander": "^2.12.2",
+	"@types/execa": "^2.0.0",
+	"@types/figlet": "^1.5.4",
+	"@types/fs-extra": "^9.0.13",
+	"@types/inquirer": "^8.1.3",
+	"@types/node": "^16.11.9",
+	"@types/rollup": "^0.54.0",
+	rollup: "^2.60.0",
+	"rollup-plugin-typescript2": "^0.31.0",
+	"ts-node": "^10.4.0",
+	typescript: "^4.5.2"
+};
+var pkg = {
+	name: name,
+	version: version,
+	description: description,
+	author: author,
+	main: main,
+	bin: bin,
+	repository: repository,
+	scripts: scripts,
+	dependencies: dependencies,
+	devDependencies: devDependencies
+};
+
+const VERSION = 'V' + pkg.version;
 const PROJECT_NAME = 'jt';
 const TEMP_DIR_NAME = '.temp';
 const TEMP_PATH = fsPath__default["default"].join(__dirname, '..', TEMP_DIR_NAME);
@@ -1113,6 +1175,14 @@ class TemplateRegistry extends BaseRegistry {
     }
 }
 const templateRegistry = new TemplateRegistry();
+const chooseTemplate = () => __awaiter(void 0, void 0, void 0, function* () {
+    return inquirer__default["default"].prompt({
+        name: 'name',
+        type: 'list',
+        message: '选择模板',
+        choices: templateRegistry.data.map(item => item.name)
+    });
+});
 var templateCommand = defineCommand({
     name: COMMAND.CHANGE_REGISTRY,
     use: (ctx) => {
@@ -1121,10 +1191,10 @@ var templateCommand = defineCommand({
             .description('模板功能')
             .option('-l, --ls', "列出所有模板信息")
             .option('-a, --add', "新增模板")
-            .option('-r, --rm <templateName>', "删除模板")
-            .option('-u, --update <templateName>', "更新模板")
+            .option('-r, --rm [模板名称]', "删除模板")
+            .option('-u, --update [模板名称]', "更新模板")
             .option('-c, --clear', "清空模板")
-            .option('-d, --detail <templateName>', "模板详情")
+            .option('-d, --detail [模板名称]', "模板详情")
             .action((options) => __awaiter(void 0, void 0, void 0, function* () {
             if (options.ls || Object.keys(options).length === 0) {
                 success(templateRegistry.data.map((tp, index) => index + 1 + '. ' + tp.name).join('\r\n'));
@@ -1168,14 +1238,22 @@ var templateCommand = defineCommand({
                     }
                 ]);
                 templateRegistry.add({ name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url });
-                success(`新增模板[${ans.templateName}]`);
+                success(`新增模板${underlineAndBold(ans.templateName)}`);
             }
             else if (options.update) {
-                if (!templateRegistry.exists(options.update)) {
-                    error(`模板[${options.update}]不存在`);
+                let id = options.update;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    if (templateRegistry.data.length === 0)
+                        return success();
+                    const ans = yield chooseTemplate();
+                    id = ans.name;
+                }
+                if (!templateRegistry.exists(id)) {
+                    error(`模板${underlineAndBold(id)}不存在`);
                     return;
                 }
-                const record = templateRegistry.get(options.update);
+                const record = templateRegistry.get(id);
                 //填写模板信息
                 const ans = yield inquirer__default["default"].prompt([
                     {
@@ -1216,27 +1294,48 @@ var templateCommand = defineCommand({
                         },
                     }
                 ]);
-                templateRegistry.updated(options.update, { name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url });
-                success(`更新模板${underlineAndBold(options.update)}`);
+                templateRegistry.updated(id, { name: ans.templateName, local: ans.local, localPath: ans.local ? ans.url : "", remoteSrc: ans.local ? "" : ans.url });
+                success(`更新模板${underlineAndBold(id)}`);
             }
             else if (options.rm) {
-                if (!templateRegistry.exists(options.rm)) {
-                    error(`模板${underlineAndBold(options.rm)}不存在`);
+                let id = options.rm;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    if (templateRegistry.data.length === 0)
+                        return success();
+                    const ans = yield chooseTemplate();
+                    id = ans.name;
+                }
+                if (!templateRegistry.exists(id)) {
+                    error(`模板${underlineAndBold(id)}不存在`);
                     return;
                 }
-                templateRegistry.remove(options.rm);
-                success(`已删除模板${underlineAndBold(options.rm)}`);
+                templateRegistry.remove(id);
+                success(`已删除模板${underlineAndBold(id)}`);
             }
             else if (options.clear) {
                 templateRegistry.clear();
                 success(`模板已清空`);
             }
             else if (options.detail) {
-                if (!templateRegistry.exists(options.detail)) {
-                    error(`模板${underlineAndBold(options.detail)}不存在`);
+                let id = options.detail;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    if (templateRegistry.data.length === 0)
+                        return success();
+                    const ans = yield chooseTemplate();
+                    id = ans.name;
+                }
+                if (!templateRegistry.exists(id)) {
+                    error(`模板${underlineAndBold(id)}不存在`);
                     return;
                 }
-                success(JSON.stringify(templateRegistry.get(options.detail), null, 2));
+                const record = templateRegistry.get(id);
+                success('------------------------------');
+                success('模板名称:', record.name);
+                success('是否本地模板:', record.local ? '是' : '否');
+                success('模板路径:', record.local ? record.localPath : record.remoteSrc);
+                success('------------------------------');
             }
         }));
     }
@@ -2116,7 +2215,7 @@ function deleteLocal(config) {
         }
     });
 }
-function stepLoading(task, message) {
+function stepLoading(task, message, errorMessage) {
     return __awaiter(this, void 0, void 0, function* () {
         const loading = ora__default["default"](message);
         loading.start();
@@ -2124,7 +2223,7 @@ function stepLoading(task, message) {
             yield task();
         }
         catch (e) {
-            loading.fail(danger((e === null || e === void 0 ? void 0 : e.message) || "未知异常"));
+            loading.fail(danger((errorMessage !== null && errorMessage !== void 0 ? errorMessage : e === null || e === void 0 ? void 0 : e.message) || "未知异常"));
             throw e;
         }
         finally {
@@ -2171,6 +2270,22 @@ function deploy(config) {
         }
     });
 }
+function execScript(cmd, opts) {
+    return __awaiter(this, void 0, void 0, function* () {
+        yield stepLoading(() => __awaiter(this, void 0, void 0, function* () {
+            return new Promise((resolve, reject) => {
+                child_process.exec(cmd, { cwd: opts === null || opts === void 0 ? void 0 : opts.cwd }, (err, stdout, stderr) => {
+                    if (err) {
+                        return reject(err);
+                    }
+                    return resolve(void 0);
+                });
+            });
+        }), (opts === null || opts === void 0 ? void 0 : opts.tip) || '正在执行...', `执行${underlineAndBold(cmd)}失败`);
+        success(`执行完成 ${underlineAndBold(cmd)}`);
+        arrow();
+    });
+}
 
 // 部署相关的页面
 class DeployRegistry extends BaseRegistry {
@@ -2178,7 +2293,27 @@ class DeployRegistry extends BaseRegistry {
         super(DEPLOY_PATH, "name");
     }
 }
+const displayDeployInfo = (record) => {
+    success('------------------------------');
+    success('配置名称:', record.name);
+    success('服务器地址:', record.host + ':' + record.port);
+    success('密钥模式:', record.mode === 'password' ? '密码' : '密钥');
+    success('登录用户:', record.username);
+    success('本地路径:', fsPath.join(process.cwd(), record.distDirName));
+    success('远程部署路径:', record.remotePath);
+    success('部署前执行脚本:', (record.beforeScript || ""));
+    success('部署后执行脚本:', (record.afterScript || ""));
+    success('------------------------------');
+};
 const deployRegistry = new DeployRegistry();
+const chooseDeploy = () => __awaiter(void 0, void 0, void 0, function* () {
+    return inquirer__default["default"].prompt({
+        name: 'name',
+        type: 'list',
+        message: '请选择配置',
+        choices: deployRegistry.data.map(item => item.name)
+    });
+});
 var deployCommand = defineCommand({
     name: COMMAND.DEPLOY,
     use: (ctx) => {
@@ -2188,11 +2323,12 @@ var deployCommand = defineCommand({
             .description("部署功能")
             .option("-l, --ls", "列出所有部署配置")
             .option("-a, --add", "添加部署配置")
-            .option("-r, --rm <deployName>", "删除部署配置")
-            .option("-u, --update <deployName>", "更新部署配置")
+            .option("-r, --rm [配置名称]", "删除部署配置")
+            .option("-u, --update [配置名称]", "更新部署配置")
             .option("-c, --clear", "清空部署配置")
-            .option("-d, --detail <deployName>", "配置详情")
+            .option("-d, --detail [配置名称]", "配置详情")
             .option("-s, --start", "执行部署")
+            .option("-p, --copy [配置名称]", "复制配置")
             .action((options) => __awaiter(void 0, void 0, void 0, function* () {
             const questions = [
                 {
@@ -2205,7 +2341,11 @@ var deployCommand = defineCommand({
                             return "不能为空";
                         }
                         // 校验配置是否存在
-                        if (options.add && deployRegistry.exists(input)) {
+                        if ((options.add || options.copy) && deployRegistry.exists(input)) {
+                            return "配置已存在";
+                        }
+                        // TODO 更新校验
+                        if (options.update) {
                             return "配置已存在";
                         }
                         return true;
@@ -2214,7 +2354,7 @@ var deployCommand = defineCommand({
                 {
                     name: "mode",
                     type: "list",
-                    message: "请选择SSH模式",
+                    message: "请选择密钥模式",
                     choices: [
                         { name: "密码", value: "password" },
                         { name: "密钥", value: "privateKey" },
@@ -2272,6 +2412,16 @@ var deployCommand = defineCommand({
                     // 相当于默认名，每次执行命令都会重新询问
                     validate: validEmpty,
                 },
+                {
+                    name: "beforeScript",
+                    type: "input",
+                    message: "部署前执行脚本",
+                },
+                {
+                    name: "afterScript",
+                    type: "input",
+                    message: "部署后执行脚本",
+                },
             ];
             if (options.ls) {
                 success(deployRegistry.data
@@ -2281,58 +2431,72 @@ var deployCommand = defineCommand({
             else if (options.add) {
                 // 添加部署配置
                 const ans = yield inquirer__default["default"].prompt(questions);
-                deployRegistry.add({
-                    name: ans.name,
-                    mode: ans.mode,
-                    privateKeyPath: ans.privateKeyPath,
-                    host: ans.host,
-                    port: ans.port,
-                    username: ans.username,
-                    distDirName: ans.distDirName,
-                    remotePath: ans.remotePath,
-                });
+                // 数据格式化
+                for (const key in ans) {
+                    const k = key;
+                    const value = ans[k];
+                    if (typeof value === 'string') {
+                        ans[k] = value;
+                    }
+                }
+                deployRegistry.add(ans);
                 success(`新增配置${underlineAndBold(ans.name)}`);
             }
             else if (options.update) {
-                if (!deployRegistry.exists(options.update)) {
-                    error(`配置${underlineAndBold(options.update)}不存在`);
+                let id = options.update;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    if (deployRegistry.data.length === 0)
+                        return success();
+                    const ans = yield chooseDeploy();
+                    id = ans.name;
+                }
+                if (!deployRegistry.exists(id)) {
+                    error(`配置${underlineAndBold(id)}不存在`);
                     return;
                 }
-                const record = deployRegistry.get(options.update);
+                const record = deployRegistry.get(id);
                 const ans = yield inquirer__default["default"].prompt(withDefault(questions, record));
-                deployRegistry.updated(options.update, {
-                    name: ans.name,
-                    mode: ans.mode,
-                    privateKeyPath: ans.privateKeyPath,
-                    host: ans.host,
-                    port: ans.port,
-                    username: ans.username,
-                    distDirName: ans.distDirName,
-                    remotePath: ans.remotePath,
-                });
-                success(`更新配置${underlineAndBold(options.update)}`);
+                deployRegistry.updated(id, ans);
+                success(`更新配置${underlineAndBold(id)}`);
             }
             else if (options.rm) {
-                if (!deployRegistry.exists(options.rm)) {
-                    error(`配置${underlineAndBold(options.rm)}不存在`);
+                let id = options.rm;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    if (deployRegistry.data.length === 0)
+                        return success();
+                    const ans = yield chooseDeploy();
+                    id = ans.name;
+                }
+                if (!deployRegistry.exists(id)) {
+                    error(`配置${underlineAndBold(id)}不存在`);
                     return;
                 }
-                deployRegistry.remove(options.rm);
-                success(`已删除配置${underlineAndBold(options.rm)}`);
+                deployRegistry.remove(id);
+                success(`已删除配置${underlineAndBold(id)}`);
             }
             else if (options.clear) {
                 deployRegistry.clear();
                 success(`配置已清空`);
             }
             else if (options.detail) {
-                if (!deployRegistry.exists(options.detail)) {
-                    error(`配置${underlineAndBold(options.detail)}不存在`);
+                let id = options.detail;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    if (deployRegistry.data.length === 0)
+                        return success();
+                    const ans = yield chooseDeploy();
+                    id = ans.name;
+                }
+                if (!deployRegistry.exists(id)) {
+                    error(`配置${underlineAndBold(id)}不存在`);
                     return;
                 }
-                success(JSON.stringify(deployRegistry.get(options.detail), null, 2));
+                displayDeployInfo(deployRegistry.get(id));
             }
             else if (options.start || Object.keys(options).length === 0) {
-                // TODO 执行部署命令
+                // 执行部署命令
                 const configList = deployRegistry.data.map((item) => item.name);
                 const ans = yield inquirer__default["default"].prompt([
                     {
@@ -2345,13 +2509,7 @@ var deployCommand = defineCommand({
                         name: 'isConfirm',
                         type: "confirm",
                         message: (params) => {
-                            const record = deployRegistry.get(params.name);
-                            success('------------------------------');
-                            success('服务器地址: ' + record.host + ':' + record.port);
-                            success('登录用户: ' + record.username);
-                            success('本地路径: ' + fsPath.join(process.cwd(), record.distDirName));
-                            success('远程部署路径: ' + record.remotePath);
-                            success('------------------------------');
+                            displayDeployInfo(deployRegistry.get(params.name));
                             return '是否部署:';
                         }
                     },
@@ -2381,16 +2539,50 @@ var deployCommand = defineCommand({
                 try {
                     // 开始部署
                     const start = Date.now();
+                    // 运行部署前脚本
+                    if (deployConfig.beforeScript) {
+                        yield execScript(deployConfig.beforeScript, { cwd: process.cwd(), tip: `正在执行${underlineAndBold(deployConfig.beforeScript)} ...` });
+                    }
                     yield deploy(deployConfig);
+                    if (deployConfig.afterScript) {
+                        // 运行部署后脚本
+                        yield execScript(deployConfig.afterScript, { cwd: process.cwd(), tip: `正在执行${underlineAndBold(deployConfig.afterScript)} ...` });
+                    }
                     const end = Date.now();
                     newline(2);
-                    success(`部署成功,耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
+                    success(`部署成功,总耗时${underlineAndBold(((end - start) / 1000).toFixed(1))}s`);
                 }
                 catch (err) {
                     // TODO log日志输出
                     newline(2);
                     error(`部署失败 ${err}`);
                 }
+            }
+            else if (options.copy) {
+                let id = options.copy;
+                // 如果未提供配置名称，则提供选择
+                if (typeof id === 'boolean') {
+                    const ans = yield inquirer__default["default"].prompt({
+                        name: 'name',
+                        type: 'list',
+                        message: '选择配置',
+                        choices: deployRegistry.data.map(item => item.name)
+                    });
+                    id = ans.name;
+                }
+                const record = deployRegistry.get(id);
+                // 添加部署配置
+                const ans = yield inquirer__default["default"].prompt(withDefault(questions, record));
+                // 数据格式化
+                for (const key in ans) {
+                    const k = key;
+                    const value = ans[k];
+                    if (typeof value === 'string') {
+                        ans[k] = value;
+                    }
+                }
+                deployRegistry.add(ans);
+                success(`新增配置${underlineAndBold(ans.name)}`);
             }
         }));
     },
