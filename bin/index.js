@@ -47,7 +47,7 @@ var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
 var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
 
 var name = "jtcommand";
-var version = "1.0.6";
+var version = "1.0.7";
 var description = "";
 var author = "HunterJiang";
 var main = "bin/index.js";
@@ -1314,6 +1314,10 @@ var templateCommand = defineCommand({
                 success(`已删除模板${underlineAndBold(id)}`);
             }
             else if (options.clear) {
+                // 确认清空
+                const ans = yield inquirer__default["default"].prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }]);
+                if (!ans.isConfirm)
+                    return;
                 templateRegistry.clear();
                 success(`模板已清空`);
             }
@@ -2344,10 +2348,6 @@ var deployCommand = defineCommand({
                         if ((options.add || options.copy) && deployRegistry.exists(input)) {
                             return "配置已存在";
                         }
-                        // TODO 更新校验
-                        if (options.update) {
-                            return "配置已存在";
-                        }
                         return true;
                     },
                 },
@@ -2456,6 +2456,17 @@ var deployCommand = defineCommand({
                     return;
                 }
                 const record = deployRegistry.get(id);
+                // 修改name的校验规则
+                questions.find(item => item.name === 'name').validate = (input) => {
+                    // 非空校验
+                    if (!input) {
+                        return "不能为空";
+                    }
+                    if (record.name !== input && deployRegistry.exists(input)) {
+                        return "配置已存在";
+                    }
+                    return true;
+                };
                 const ans = yield inquirer__default["default"].prompt(withDefault(questions, record));
                 deployRegistry.updated(id, ans);
                 success(`更新配置${underlineAndBold(id)}`);
@@ -2477,6 +2488,10 @@ var deployCommand = defineCommand({
                 success(`已删除配置${underlineAndBold(id)}`);
             }
             else if (options.clear) {
+                // 确认清空
+                const ans = yield inquirer__default["default"].prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }]);
+                if (!ans.isConfirm)
+                    return;
                 deployRegistry.clear();
                 success(`配置已清空`);
             }
@@ -2510,7 +2525,7 @@ var deployCommand = defineCommand({
                         type: "confirm",
                         message: (params) => {
                             displayDeployInfo(deployRegistry.get(params.name));
-                            return '是否部署:';
+                            return '是否部署?';
                         }
                     },
                     {

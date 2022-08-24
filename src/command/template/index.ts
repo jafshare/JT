@@ -147,6 +147,9 @@ export default defineCommand({
           templateRegistry.remove(id)
           success(`已删除模板${underlineAndBold(id)}`)
         } else if (options.clear) {
+          // 确认清空
+          const ans = await inquirer.prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }])
+          if (!ans.isConfirm) return
           templateRegistry.clear()
           success(`模板已清空`)
         } else if (options.detail) {

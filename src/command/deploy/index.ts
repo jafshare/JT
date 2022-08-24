@@ -92,10 +92,6 @@ export default defineCommand({
               if ((options.add || options.copy) && deployRegistry.exists(input)) {
                 return "配置已存在";
               }
-              // TODO 更新校验
-              if (options.update) {
-                return "配置已存在"
-              }
               return true;
             },
           },
@@ -203,6 +199,17 @@ export default defineCommand({
             return;
           }
           const record = deployRegistry.get(id)!;
+          // 修改name的校验规则
+          (questions as any[]).find(item => item.name === 'name').validate = (input: any) => {
+            // 非空校验
+            if (!input) {
+              return "不能为空";
+            }
+            if (record.name !== input && deployRegistry.exists(input)) {
+              return "配置已存在"
+            }
+            return true;
+          };
           const ans = await inquirer.prompt(withDefault(questions, record));
           deployRegistry.updated(id, ans);
           success(`更新配置${underlineAndBold(id)}`);
@@ -221,6 +228,9 @@ export default defineCommand({
           deployRegistry.remove(id);
           success(`已删除配置${underlineAndBold(id)}`);
         } else if (options.clear) {
+          // 确认清空
+          const ans = await inquirer.prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }])
+          if (!ans.isConfirm) return
           deployRegistry.clear();
           success(`配置已清空`);
         } else if (options.detail) {
@@ -251,7 +261,7 @@ export default defineCommand({
               type: "confirm",
               message: (params) => {
                 displayDeployInfo(deployRegistry.get(params.name)!)
-                return '是否部署:'
+                return '是否部署?'
               }
             },
             {
