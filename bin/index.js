@@ -47,7 +47,7 @@ var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
 var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
 
 var name = "jtcommand";
-var version = "1.0.5";
+var version = "1.0.6";
 var description = "";
 var author = "HunterJiang";
 var main = "bin/index.js";
