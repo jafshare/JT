@@ -1,6 +1,6 @@
 {
   "name": "jtcommand",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "",
   "author": "HunterJiang",
   "main": "bin/index.js",

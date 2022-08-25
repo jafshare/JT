@@ -6,7 +6,7 @@ import { DEPLOY_PATH } from "@/constant/path";
 import inquirer, { QuestionCollection } from "inquirer";
 
 import COMMAND from "@/constant/command";
-import { error, newline, success, underlineAndBold } from "@/lib/log";
+import { error, newline, success, underlineAndBold, warn } from "@/lib/log";
 import defineCommand from "../defineCommand";
 import { BaseRegistry } from "../base/registry";
 import { validEmpty, withDefault } from "@/lib/inquirerUtils";
@@ -38,6 +38,7 @@ class DeployRegistry extends BaseRegistry<DeployRecord> {
     super(DEPLOY_PATH, "name");
   }
 }
+const emptyMessage = "暂无可用配置，请添加(●'◡'●)"
 const displayDeployInfo = (record: DeployRecord) => {
   success('------------------------------')
   success('配置名称:', record.name)
@@ -190,7 +191,7 @@ export default defineCommand({
           let id = options.update
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
-            if (deployRegistry.data.length === 0) return success()
+            if (deployRegistry.data.length === 0) return warn(emptyMessage)
             const ans = await chooseDeploy();
             id = ans.name
           }
@@ -217,7 +218,7 @@ export default defineCommand({
           let id = options.rm
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
-            if (deployRegistry.data.length === 0) return success()
+            if (deployRegistry.data.length === 0) return warn(emptyMessage)
             const ans = await chooseDeploy();
             id = ans.name
           }
@@ -229,7 +230,7 @@ export default defineCommand({
           success(`已删除配置${underlineAndBold(id)}`);
         } else if (options.clear) {
           // 确认清空
-          const ans = await inquirer.prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }])
+          const ans = await inquirer.prompt([{ name: 'isConfirm', type: 'confirm', message: "确认清空?" }])
           if (!ans.isConfirm) return
           deployRegistry.clear();
           success(`配置已清空`);
@@ -237,7 +238,7 @@ export default defineCommand({
           let id = options.detail
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
-            if (deployRegistry.data.length === 0) return success()
+            if (deployRegistry.data.length === 0) return warn(emptyMessage)
             const ans = await chooseDeploy();
             id = ans.name
           }
@@ -247,6 +248,8 @@ export default defineCommand({
           }
           displayDeployInfo(deployRegistry.get(id)!)
         } else if (options.start || Object.keys(options).length === 0) {
+          // 当配置不存在则退出
+          if (deployRegistry.data.length === 0) return warn(emptyMessage);
           // 执行部署命令
           const configList = deployRegistry.data.map((item) => item.name);
           const ans = await inquirer.prompt([
@@ -277,7 +280,7 @@ export default defineCommand({
           ]);
           if (!ans.isConfirm) {
             newline();
-            error("取消部署")
+            warn("取消部署")
             return
           }
           // TODO 确认配置，且提示是否需要修改
@@ -316,9 +319,11 @@ export default defineCommand({
             error(`部署失败 ${err}`);
           }
         } else if (options.copy) {
+          // 当配置不存在则退出
           let id = options.copy
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
+            if (deployRegistry.data.length === 0) return warn(emptyMessage);
             const ans = await inquirer.prompt({
               name: 'name',
               type: 'list',
@@ -326,6 +331,10 @@ export default defineCommand({
               choices: deployRegistry.data.map(item => item.name)
             });
             id = ans.name
+          }
+          if (!deployRegistry.exists(id)) {
+            error(`配置${underlineAndBold(id)}不存在`);
+            return;
           }
           const record = deployRegistry.get(id)!
           // 添加部署配置

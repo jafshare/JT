@@ -9,12 +9,12 @@ var inquirer = require('inquirer');
 var fsExtra = require('fs-extra');
 var ora = require('ora');
 var gitly = require('gitly');
+var os = require('os');
 var node_buffer = require('node:buffer');
 var path = require('node:path');
 var childProcess = require('node:child_process');
 var process$1 = require('node:process');
 var crossSpawn = require('cross-spawn');
-var os = require('os');
 require('node:os');
 require('signal-exit');
 require('get-stream');
@@ -36,6 +36,7 @@ var chalk__default = /*#__PURE__*/_interopDefaultLegacy(chalk);
 var inquirer__default = /*#__PURE__*/_interopDefaultLegacy(inquirer);
 var ora__default = /*#__PURE__*/_interopDefaultLegacy(ora);
 var gitly__default = /*#__PURE__*/_interopDefaultLegacy(gitly);
+var os__default = /*#__PURE__*/_interopDefaultLegacy(os);
 var path__default = /*#__PURE__*/_interopDefaultLegacy(path);
 var childProcess__default = /*#__PURE__*/_interopDefaultLegacy(childProcess);
 var process__default = /*#__PURE__*/_interopDefaultLegacy(process$1);
@@ -49,7 +50,7 @@ var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
 var extract__default = /*#__PURE__*/_interopDefaultLegacy(extract);
 
 var name = "jtcommand";
-var version = "1.0.8";
+var version = "1.0.9";
 var description = "";
 var author = "HunterJiang";
 var main = "bin/index.js";
@@ -123,6 +124,9 @@ const success = (...args) => {
 };
 const info = (...args) => {
     console.log(chalk__default["default"].white(...args));
+};
+const warn = (...args) => {
+    console.log(chalk__default["default"].yellowBright(...args));
 };
 const error = (...args) => {
     console.log(chalk__default["default"].redBright(...args));
@@ -205,9 +209,11 @@ const gitDownload = (src, dest, loadingText) => __awaiter(void 0, void 0, void 0
     }));
 });
 
-const CONFIG_DIR = fsPath__default["default"].join(__dirname, "../config");
+const AppData = fsPath__default["default"].join(os__default["default"].homedir(), 'AppData', 'Roaming', 'jt');
+const DEFAULT_CONFIG_DIR = fsPath__default["default"].join(__dirname, '..', 'config');
+const CONFIG_DIR = fsPath__default["default"].join(AppData, "config");
 const TEMPLATE_PATH = fsPath__default["default"].join(CONFIG_DIR, 'templates.json');
-const REGISTRY_PATH = fsPath__default["default"].join(CONFIG_DIR, 'registries.json');
+const REGISTRY_PATH = fsPath__default["default"].join(DEFAULT_CONFIG_DIR, 'registries.json');
 const DEPLOY_PATH = fsPath__default["default"].join(CONFIG_DIR, 'deploys.json');
 
 const configs = {
@@ -220,9 +226,12 @@ const defineCommand = (command) => {
 };
 
 const COMMAND = {
-    // 生成项目
+    // 初始化
     INIT: "init",
     INIT_ALIAS: "i",
+    // 创建
+    CREATE: 'create',
+    CREATE_ALIAS: 'c',
     // 换源
     CHANGE_REGISTRY: "change-registry",
     CHANGE_REGISTRY_ALIAS: "cr",
@@ -240,6 +249,9 @@ const COMMAND = {
 function createByTemplate() {
     return __awaiter(this, void 0, void 0, function* () {
         const templates = configs.templates;
+        if (templates.length === 0) {
+            return warn("暂无可用模板，请添加(●'◡'●)");
+        }
         const defaultProjectName = 'jt-template';
         const answers = yield inquirer__default["default"].prompt([
             {
@@ -316,11 +328,11 @@ function createByTemplate() {
         info(`  cd ${answers.projectName}\r\n`);
     });
 }
-var initCommand = defineCommand({
-    name: COMMAND.INIT, use: (ctx) => {
+var createCommand = defineCommand({
+    name: COMMAND.CREATE, use: (ctx) => {
         ctx.program.version(VERSION)
-            .command(COMMAND.INIT)
-            .alias(COMMAND.INIT_ALIAS)
+            .command(COMMAND.CREATE)
+            .alias(COMMAND.CREATE_ALIAS)
             .description('根据模板创建')
             .action(() => {
             createByTemplate();
@@ -1172,6 +1184,7 @@ class BaseRegistry {
     }
 }
 
+const emptyMessage$1 = "暂无可用配置模板，请添加(●'◡'●)";
 /**
  * 对模板仓库的封装
  */
@@ -1251,7 +1264,7 @@ var templateCommand = defineCommand({
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
                     if (templateRegistry.data.length === 0)
-                        return success();
+                        return warn(emptyMessage$1);
                     const ans = yield chooseTemplate();
                     id = ans.name;
                 }
@@ -1308,7 +1321,7 @@ var templateCommand = defineCommand({
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
                     if (templateRegistry.data.length === 0)
-                        return success();
+                        return warn(emptyMessage$1);
                     const ans = yield chooseTemplate();
                     id = ans.name;
                 }
@@ -1321,7 +1334,7 @@ var templateCommand = defineCommand({
             }
             else if (options.clear) {
                 // 确认清空
-                const ans = yield inquirer__default["default"].prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }]);
+                const ans = yield inquirer__default["default"].prompt([{ name: 'isConfirm', type: 'confirm', message: "确认清空?" }]);
                 if (!ans.isConfirm)
                     return;
                 templateRegistry.clear();
@@ -1332,7 +1345,7 @@ var templateCommand = defineCommand({
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
                     if (templateRegistry.data.length === 0)
-                        return success();
+                        return warn(emptyMessage$1);
                     const ans = yield chooseTemplate();
                     id = ans.name;
                 }
@@ -2303,6 +2316,7 @@ class DeployRegistry extends BaseRegistry {
         super(DEPLOY_PATH, "name");
     }
 }
+const emptyMessage = "暂无可用配置，请添加(●'◡'●)";
 const displayDeployInfo = (record) => {
     success('------------------------------');
     success('配置名称:', record.name);
@@ -2453,7 +2467,7 @@ var deployCommand = defineCommand({
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
                     if (deployRegistry.data.length === 0)
-                        return success();
+                        return warn(emptyMessage);
                     const ans = yield chooseDeploy();
                     id = ans.name;
                 }
@@ -2482,7 +2496,7 @@ var deployCommand = defineCommand({
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
                     if (deployRegistry.data.length === 0)
-                        return success();
+                        return warn(emptyMessage);
                     const ans = yield chooseDeploy();
                     id = ans.name;
                 }
@@ -2495,7 +2509,7 @@ var deployCommand = defineCommand({
             }
             else if (options.clear) {
                 // 确认清空
-                const ans = yield inquirer__default["default"].prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }]);
+                const ans = yield inquirer__default["default"].prompt([{ name: 'isConfirm', type: 'confirm', message: "确认清空?" }]);
                 if (!ans.isConfirm)
                     return;
                 deployRegistry.clear();
@@ -2506,7 +2520,7 @@ var deployCommand = defineCommand({
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
                     if (deployRegistry.data.length === 0)
-                        return success();
+                        return warn(emptyMessage);
                     const ans = yield chooseDeploy();
                     id = ans.name;
                 }
@@ -2517,6 +2531,9 @@ var deployCommand = defineCommand({
                 displayDeployInfo(deployRegistry.get(id));
             }
             else if (options.start || Object.keys(options).length === 0) {
+                // 当配置不存在则退出
+                if (deployRegistry.data.length === 0)
+                    return warn(emptyMessage);
                 // 执行部署命令
                 const configList = deployRegistry.data.map((item) => item.name);
                 const ans = yield inquirer__default["default"].prompt([
@@ -2548,7 +2565,7 @@ var deployCommand = defineCommand({
                 ]);
                 if (!ans.isConfirm) {
                     newline();
-                    error("取消部署");
+                    warn("取消部署");
                     return;
                 }
                 // TODO 确认配置，且提示是否需要修改
@@ -2580,9 +2597,12 @@ var deployCommand = defineCommand({
                 }
             }
             else if (options.copy) {
+                // 当配置不存在则退出
                 let id = options.copy;
                 // 如果未提供配置名称，则提供选择
                 if (typeof id === 'boolean') {
+                    if (deployRegistry.data.length === 0)
+                        return warn(emptyMessage);
                     const ans = yield inquirer__default["default"].prompt({
                         name: 'name',
                         type: 'list',
@@ -2590,6 +2610,10 @@ var deployCommand = defineCommand({
                         choices: deployRegistry.data.map(item => item.name)
                     });
                     id = ans.name;
+                }
+                if (!deployRegistry.exists(id)) {
+                    error(`配置${underlineAndBold(id)}不存在`);
+                    return;
                 }
                 const record = deployRegistry.get(id);
                 // 添加部署配置
@@ -2668,8 +2692,8 @@ var configCommand = defineCommand({
         // 更改淘宝源
         ctx.program.command(COMMAND.CONFIG).alias(COMMAND.CONFIG_ALIAS)
             .description('配置导入导出')
-            .option('-i, --import [导入路径]', "导入模板")
-            .option('-e, --export [导出路径]', "导出模板")
+            .option('-i, --import [导入路径]', `导入模板(默认:${bundleFilename})`)
+            .option('-e, --export [导出路径]', `导出模板(默认:${bundleFilename})`)
             .action((options) => __awaiter(void 0, void 0, void 0, function* () {
             // 导入
             if (options.import) {
@@ -2708,9 +2732,10 @@ var configCommand = defineCommand({
     }
 });
 
+// 初始化数据
 program.name(PROJECT_NAME).usage("[command] [options]");
 // 命令行
-const commands = [initCommand, registryCommand, templateCommand, deployCommand, configCommand];
+const commands = [createCommand, registryCommand, templateCommand, deployCommand, configCommand];
 for (const command of commands) {
     // 加载命令
     command.use({ program });

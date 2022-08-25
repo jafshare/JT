@@ -3,7 +3,7 @@ import inquirer from "inquirer"
 import { copy, mkdir, remove, existsSync, rmSync, mkdirSync } from 'fs-extra'
 
 import { TEMP_PATH, VERSION } from "@/constant"
-import { error, info, success } from "@/lib/log"
+import { error, info, success, warn } from "@/lib/log"
 import { gitDownload } from "@/lib/download"
 import configs from '@/config';
 import defineCommand from '../defineCommand';
@@ -14,6 +14,9 @@ export type Answers = {
 }
 async function createByTemplate() {
   const templates = configs.templates
+  if (templates.length === 0) {
+    return warn("暂无可用模板，请添加(●'◡'●)")
+  }
   const defaultProjectName = 'jt-template'
   const answers = await inquirer.prompt<Answers>([
     {
@@ -90,10 +93,10 @@ async function createByTemplate() {
   info(`  cd ${answers.projectName}\r\n`)
 }
 export default defineCommand({
-  name: COMMAND.INIT, use: (ctx) => {
+  name: COMMAND.CREATE, use: (ctx) => {
     ctx.program.version(VERSION)
-      .command(COMMAND.INIT)
-      .alias(COMMAND.INIT_ALIAS)
+      .command(COMMAND.CREATE)
+      .alias(COMMAND.CREATE_ALIAS)
       .description('根据模板创建')
       .action(() => {
         createByTemplate()

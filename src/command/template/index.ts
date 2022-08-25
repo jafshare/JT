@@ -2,9 +2,10 @@ import { TEMPLATE_PATH } from '@/constant/path';
 import inquirer from "inquirer"
 
 import COMMAND from "@/constant/command"
-import { error, success, underlineAndBold } from "@/lib/log"
+import { error, success, underlineAndBold, warn } from "@/lib/log"
 import defineCommand from "../defineCommand";
 import { BaseRegistry } from '../base/registry';
+const emptyMessage = "暂无可用配置模板，请添加(●'◡'●)"
 /**
  * 对模板仓库的封装
  */
@@ -81,7 +82,7 @@ export default defineCommand({
           let id = options.update
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
-            if (templateRegistry.data.length === 0) return success()
+            if (templateRegistry.data.length === 0) return warn(emptyMessage)
             const ans = await chooseTemplate();
             id = ans.name
           }
@@ -136,7 +137,7 @@ export default defineCommand({
           let id = options.rm
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
-            if (templateRegistry.data.length === 0) return success()
+            if (templateRegistry.data.length === 0) return warn(emptyMessage)
             const ans = await chooseTemplate();
             id = ans.name
           }
@@ -148,7 +149,7 @@ export default defineCommand({
           success(`已删除模板${underlineAndBold(id)}`)
         } else if (options.clear) {
           // 确认清空
-          const ans = await inquirer.prompt([{ name: 'isConfirm', type: 'confirm', message: "确认删除?" }])
+          const ans = await inquirer.prompt([{ name: 'isConfirm', type: 'confirm', message: "确认清空?" }])
           if (!ans.isConfirm) return
           templateRegistry.clear()
           success(`模板已清空`)
@@ -156,7 +157,7 @@ export default defineCommand({
           let id = options.detail
           // 如果未提供配置名称，则提供选择
           if (typeof id === 'boolean') {
-            if (templateRegistry.data.length === 0) return success()
+            if (templateRegistry.data.length === 0) return warn(emptyMessage)
             const ans = await chooseTemplate();
             id = ans.name
           }

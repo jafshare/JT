@@ -1,7 +1,10 @@
 const COMMAND = {
-  // 生成项目
+  // 初始化
   INIT: "init",
   INIT_ALIAS: "i",
+  // 创建
+  CREATE: 'create',
+  CREATE_ALIAS: 'c',
   // 换源
   CHANGE_REGISTRY: "change-registry",
   CHANGE_REGISTRY_ALIAS: "cr",

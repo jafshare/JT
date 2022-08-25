@@ -66,8 +66,8 @@ export default defineCommand({
     // 更改淘宝源
     ctx.program.command(COMMAND.CONFIG).alias(COMMAND.CONFIG_ALIAS)
       .description('配置导入导出')
-      .option('-i, --import [导入路径]', "导入模板")
-      .option('-e, --export [导出路径]', "导出模板")
+      .option('-i, --import [导入路径]', `导入模板(默认:${bundleFilename})`)
+      .option('-e, --export [导出路径]', `导出模板(默认:${bundleFilename})`)
       .action(async (options) => {
         // 导入
         if (options.import) {
