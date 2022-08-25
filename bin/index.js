@@ -26,6 +26,7 @@ var shellEscape = require('shell-escape');
 var invariant = require('assert');
 var SSH2 = require('ssh2');
 var archiver = require('archiver');
+var extract = require('extract-zip');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -45,9 +46,10 @@ var shellEscape__default = /*#__PURE__*/_interopDefaultLegacy(shellEscape);
 var invariant__default = /*#__PURE__*/_interopDefaultLegacy(invariant);
 var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
 var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
+var extract__default = /*#__PURE__*/_interopDefaultLegacy(extract);
 
 var name = "jtcommand";
-var version = "1.0.7";
+var version = "1.0.8";
 var description = "";
 var author = "HunterJiang";
 var main = "bin/index.js";
@@ -71,6 +73,7 @@ var dependencies = {
 	chalk: "^4.1.2",
 	commander: "^8.3.0",
 	execa: "^6.0.0",
+	"extract-zip": "^2.0.1",
 	figlet: "^1.5.2",
 	"fs-extra": "^10.0.0",
 	gitly: "^2.2.1",
@@ -229,6 +232,9 @@ const COMMAND = {
     // 部署
     DEPLOY: 'deploy',
     DEPLOY_ALIAS: 'dp',
+    // 配置
+    CONFIG: "config",
+    CONFIG_ALIAS: 'cfg'
 };
 
 function createByTemplate() {
@@ -2122,7 +2128,7 @@ const ssh = new NodeSSH();
  * 开始打包成zip
  * @param sourcePath 文件路径
  */
-const bundle = (config) => __awaiter(void 0, void 0, void 0, function* () {
+const bundle$1 = (config) => __awaiter(void 0, void 0, void 0, function* () {
     return new Promise((resolve, reject) => {
         if (!fsExtra.existsSync(config.sourcePath)) {
             return reject(new Error(`${config.sourcePath}文件不存在`));
@@ -2191,7 +2197,7 @@ function upload(config) {
  * @param config 配置
  * @returns
  */
-function unzip(config) {
+function unzip$1(config) {
     return __awaiter(this, void 0, void 0, function* () {
         return new Promise((resolve, reject) => __awaiter(this, void 0, void 0, function* () {
             const archiveFilename = config.bundleFilename;
@@ -2249,7 +2255,7 @@ function deploy(config) {
         config.bundleFilename = bundleFilename;
         try {
             // 第一步打包
-            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return bundle(config); }), "开始压缩...");
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return bundle$1(config); }), "开始压缩...");
             success(`压缩完成 ${underlineAndBold(bundleFilePath)}`);
             arrow();
             // 第二步连接服务器
@@ -2261,7 +2267,7 @@ function deploy(config) {
             success(`上传完成 ${underlineAndBold(config.sourcePath)}`);
             arrow();
             // 第四步解压缩
-            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return unzip(config); }), "开始解压...");
+            yield stepLoading(() => __awaiter(this, void 0, void 0, function* () { return unzip$1(config); }), "开始解压...");
             success(`解压完成 ${underlineAndBold(config.remotePath)}`);
         }
         finally {
@@ -2603,9 +2609,108 @@ var deployCommand = defineCommand({
     },
 });
 
+const bundleFilename = 'jt_config.zip';
+/**
+ * 获取完整的路径，如果指定到文件，则使用指定的文件名，指定到目录，则使用base作为文件名
+ * @param path 路径
+ * @param filename 文件名，如果路径指定了文件名，则使用路径中的文件名
+ * @returns 返回path + base 的路径
+ */
+const getFullPath = (path, filename) => {
+    let fullPath = path;
+    // 如果是目录，则需要加上filename
+    if (!fsPath.extname(path)) {
+        fullPath = fsPath.join(path, filename);
+    }
+    return fsPath.normalize(fullPath);
+};
+const bundle = (sourcePath, destPath) => __awaiter(void 0, void 0, void 0, function* () {
+    const outputPath = destPath;
+    return new Promise((resolve, reject) => {
+        if (!fsExtra.existsSync(sourcePath)) {
+            return reject(new Error(`${sourcePath}文件不存在`));
+        }
+        const bundler = archiver__default["default"]("zip", {
+            zlib: { level: 9 },
+        });
+        const output = fs__default["default"].createWriteStream(outputPath);
+        output.on("close", (err) => {
+            if (err) {
+                return reject(new Error(`${outputPath}关闭错误 ${err}`));
+            }
+            return resolve(outputPath);
+        });
+        bundler.pipe(output);
+        bundler.directory(sourcePath, "/");
+        bundler.finalize();
+    });
+});
+const unzip = (sourcePath, destDirPath) => {
+    return new Promise((resolve, reject) => __awaiter(void 0, void 0, void 0, function* () {
+        if (!fsExtra.existsSync(sourcePath)) {
+            return reject(new Error(`${sourcePath}文件不存在`));
+        }
+        try {
+            yield extract__default["default"](sourcePath, { dir: destDirPath });
+            resolve(void 0);
+        }
+        catch (err) {
+            reject(err);
+        }
+    }));
+};
+/**
+ * 提供配置导入导出
+ */
+var configCommand = defineCommand({
+    name: COMMAND.CONFIG,
+    use: (ctx) => {
+        // 更改淘宝源
+        ctx.program.command(COMMAND.CONFIG).alias(COMMAND.CONFIG_ALIAS)
+            .description('配置导入导出')
+            .option('-i, --import [导入路径]', "导入模板")
+            .option('-e, --export [导出路径]', "导出模板")
+            .action((options) => __awaiter(void 0, void 0, void 0, function* () {
+            // 导入
+            if (options.import) {
+                let importPath = options.import;
+                if (typeof importPath === 'boolean') {
+                    importPath = process.cwd();
+                }
+                const loading = ora__default["default"]('正在导入...');
+                try {
+                    yield unzip(getFullPath(importPath, bundleFilename), CONFIG_DIR);
+                    loading.succeed('导入完成');
+                }
+                catch (err) {
+                    loading.fail(danger(`导入失败 ${err}`));
+                }
+            }
+            else if (options.export) {
+                //导出
+                let outputPath = options.export;
+                // 如果未指定
+                if (typeof outputPath === 'boolean') {
+                    outputPath = process.cwd();
+                }
+                const loading = ora__default["default"]('正在导出...');
+                try {
+                    const output = yield bundle(CONFIG_DIR, getFullPath(outputPath, bundleFilename));
+                    loading.succeed('导出完成');
+                    newline();
+                    success(`配置已导出 ${underlineAndBold(output)}`);
+                }
+                catch (err) {
+                    loading.fail(danger(`导出失败 ${err}`));
+                }
+            }
+        }));
+    }
+});
+
 program.name(PROJECT_NAME).usage("[command] [options]");
 // 命令行
-const commands = [initCommand, registryCommand, templateCommand, deployCommand];
+const commands = [initCommand, registryCommand, templateCommand, deployCommand, configCommand];
 for (const command of commands) {
     // 加载命令
     command.use({ program });

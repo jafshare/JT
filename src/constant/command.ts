@@ -11,5 +11,8 @@ const COMMAND = {
   // 部署
   DEPLOY: 'deploy',
   DEPLOY_ALIAS: 'dp',
+  // 配置
+  CONFIG: "config",
+  CONFIG_ALIAS: 'cfg'
 }
 export default COMMAND
