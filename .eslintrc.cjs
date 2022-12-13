@@ -3,7 +3,7 @@ module.exports = {
   env: {
     browser: true,
     node: true,
-    es6: true
+    es6: true,
   },
   extends: ["@antfu", "prettier", "plugin:prettier/recommended"],
   rules: {
@@ -14,9 +14,9 @@ module.exports = {
       {
         extendDefaults: true,
         types: {
-          "{}": false
-        }
-      }
+          "{}": false,
+        },
+      },
     ],
     "no-empty": "off", // catch finally语句块报错
     "no-empty-function": "off", // 关闭空函数报错
@@ -26,5 +26,5 @@ module.exports = {
     "@typescript-eslint/no-var-requires": "off", // require报错
     "@typescript-eslint/ban-ts-comment": "off", // 禁用@ts-ignore等指令的报错
     "antfu/if-newline": "off"
-  }
+  },
 };

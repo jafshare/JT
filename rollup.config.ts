@@ -10,30 +10,30 @@ export default defineConfig({
     dir: "bin",
     format: "commonjs",
     // 添加执行环境
-    banner: "#! /usr/bin/env node",
+    banner: "#! /usr/bin/env node"
   },
   plugins: [
     nodeResolve({
       // 仅作为模块导入
       modulesOnly: true,
-      preferBuiltins: false,
+      preferBuiltins: false
     }),
     typescript({
       tsconfigOverride: {
         compilerOptions: {
           // 转为ES2015
-          module: "ES2015",
-        },
-      },
+          module: "ES2015"
+        }
+      }
     }),
     json(),
     copy({
       targets: [
         {
           src: "src/assets",
-          dest: "bin",
-        },
-      ],
-    }),
-  ],
+          dest: "bin"
+        }
+      ]
+    })
+  ]
 });

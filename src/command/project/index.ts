@@ -1,17 +1,17 @@
+import { basename, join } from "path";
 import inquirer from "inquirer";
 
-import COMMAND from "@/constant/command";
-import { error, success, underlineAndBold } from "@/lib/log";
-import defineCommand from "../defineCommand";
 import { copy } from "fs-extra";
-import { join, basename } from "path";
 import { readPackage } from "read-pkg";
 import { writePackage } from "write-pkg";
+import defineCommand from "../defineCommand";
+import { error, success } from "@/lib/log";
+import COMMAND from "@/constant/command";
 import { runIt } from "@/utils/runIt";
-export type WhenType = {
+export interface WhenType {
   // 是否会出现,仅当when === false则不会出现
   when?: boolean | ((choices: string[]) => boolean);
-};
+}
 export type PackageRecord = {
   name: string;
   version: string;
@@ -42,42 +42,42 @@ const config: ConfigRecord = {
       {
         name: "husky",
         version: "^8.0.1",
-        type: "devDependencies",
+        type: "devDependencies"
       },
       {
         name: "lint-staged",
         version: "^13.0.3",
-        type: "devDependencies",
+        type: "devDependencies"
       },
       {
         name: "@commitlint/cli",
         version: "^17.3.0",
-        type: "devDependencies",
+        type: "devDependencies"
       },
       {
         name: "@commitlint/config-conventional",
         version: "^17.3.0",
-        type: "devDependencies",
-      },
+        type: "devDependencies"
+      }
     ],
     scripts: [{ name: "prepare", script: "npx husky install" }],
     extraArgs: {
       "lint-staged": {
         value: {
           "*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
-          "*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write",
+          "*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write"
         },
-        when: (choices) => choices.includes("eslint"),
-      },
-    },
+        when: (choices) => choices.includes("eslint")
+      }
+    }
   },
   editor: {
     files: ["editor/.editorconfig"],
-    packages: [],
+    packages: []
   },
   prettier: {
     files: ["prettier/.prettierrc.json", "prettier/.prettierignore"],
-    packages: [{ name: "prettier", version: "^2.8.1" }],
+    packages: [{ name: "prettier", version: "^2.8.1" }]
   },
   eslint: {
     files: ["eslint/.eslintignore", "eslint/.eslintrc.cjs"],
@@ -86,32 +86,32 @@ const config: ConfigRecord = {
       {
         name: "@antfu/eslint-config",
         version: "^0.34.0",
-        type: "devDependencies",
+        type: "devDependencies"
       },
       {
         name: "eslint-config-prettier",
         version: "^8.0.0",
-        when: (choices) => choices.includes("prettier"),
+        when: (choices) => choices.includes("prettier")
       },
       {
         name: "eslint-plugin-prettier",
         version: "^4.2.1",
-        when: (choices) => choices.includes("prettier"),
-      },
+        when: (choices) => choices.includes("prettier")
+      }
     ],
     scripts: [
       {
         name: "lint",
-        script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx .",
-      },
-    ],
+        script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ."
+      }
+    ]
   },
   typescript: {
     files: ["typescript/tsconfig.json"],
     packages: [
-      { name: "typescript", version: "^4.9.3", type: "devDependencies" },
-    ],
-  },
+      { name: "typescript", version: "^4.9.3", type: "devDependencies" }
+    ]
+  }
 };
 /**
  * 排除when ==== false的数据
@@ -192,7 +192,7 @@ export default defineCommand({
             name: "type",
             type: "list",
             message: `选择项目配置`,
-            choices: ["all", "custom"],
+            choices: ["all", "custom"]
           },
           {
             name: "customChoices",
@@ -201,14 +201,14 @@ export default defineCommand({
             choices: Object.keys(config),
             when: ({ type }) => {
               return type === "custom";
-            },
-          },
+            }
+          }
         ]);
         try {
           let choices: string[] = [];
-          let files: string[] = [];
-          let packages: PackageRecord[] = [];
-          let scripts: ScriptRecord[] = [];
+          const files: string[] = [];
+          const packages: PackageRecord[] = [];
+          const scripts: ScriptRecord[] = [];
           let extraArgs: Record<string, any> = {};
           // 安装所有
           if (ans.type === "all") {
@@ -248,5 +248,5 @@ export default defineCommand({
           error(err);
         }
       });
-  },
+  }
 });

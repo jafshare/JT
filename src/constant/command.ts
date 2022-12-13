@@ -19,6 +19,6 @@ const COMMAND = {
   CONFIG_ALIAS: "cfg",
   // 项目
   PROJECT: "project",
-  PROJECT_ALIAS: "pt",
+  PROJECT_ALIAS: "pt"
 };
 export default COMMAND;
