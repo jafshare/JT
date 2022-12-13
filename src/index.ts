@@ -8,12 +8,13 @@ import registryCommand from "./command/registry"
 import templateCommand from './command/template';
 import deployCommand from './command/deploy'
 import configCommand from './command/config';
+import projectCommand from './command/project';
 import { CommandPlugin } from './command/index.d'
 // 初始化数据
 
 program.name(PROJECT_NAME).usage("[command] [options]")
 // 命令行
-const commands: CommandPlugin[] = [createCommand, registryCommand, templateCommand, deployCommand, configCommand]
+const commands: CommandPlugin[] = [createCommand, registryCommand, templateCommand, deployCommand, configCommand, projectCommand]
 for (const command of commands) {
   // 加载命令
   command.use({ program })

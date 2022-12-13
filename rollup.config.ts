@@ -2,6 +2,7 @@ import { defineConfig } from "rollup";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import typescript from "rollup-plugin-typescript2";
 import json from "@rollup/plugin-json";
+import copy from "rollup-plugin-copy";
 
 export default defineConfig({
   input: "src/index.ts",
@@ -26,5 +27,13 @@ export default defineConfig({
       },
     }),
     json(),
+    copy({
+      targets: [
+        {
+          src: "src/assets",
+          dest: "bin",
+        },
+      ],
+    }),
   ],
 });

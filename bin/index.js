@@ -27,6 +27,12 @@ var invariant = require('assert');
 var SSH2 = require('ssh2');
 var archiver = require('archiver');
 var extract = require('extract-zip');
+var fs$1 = require('node:fs');
+var node_url = require('node:url');
+var parseJson = require('parse-json');
+var normalizePackageData = require('normalize-package-data');
+var promises = require('fs/promises');
+var writeFileAtomic = require('write-file-atomic');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
 
@@ -48,12 +54,15 @@ var invariant__default = /*#__PURE__*/_interopDefaultLegacy(invariant);
 var SSH2__default = /*#__PURE__*/_interopDefaultLegacy(SSH2);
 var archiver__default = /*#__PURE__*/_interopDefaultLegacy(archiver);
 var extract__default = /*#__PURE__*/_interopDefaultLegacy(extract);
+var parseJson__default = /*#__PURE__*/_interopDefaultLegacy(parseJson);
+var normalizePackageData__default = /*#__PURE__*/_interopDefaultLegacy(normalizePackageData);
+var writeFileAtomic__default = /*#__PURE__*/_interopDefaultLegacy(writeFileAtomic);
 
 var name = "jtcommand";
 var version = "1.0.9";
 var description = "";
 var author = "HunterJiang";
-var main = "bin/index.js";
+var main$1 = "bin/index.js";
 var bin = {
 	jt: "./bin/index.js"
 };
@@ -80,7 +89,9 @@ var dependencies = {
 	gitly: "^2.2.1",
 	inquirer: "^8.2.0",
 	"node-ssh": "11.1.1",
-	ora: "5.4.1"
+	ora: "5.4.1",
+	"read-pkg": "^7.1.0",
+	"write-pkg": "^5.1.0"
 };
 var devDependencies = {
 	"@rollup/plugin-json": "^4.1.0",
@@ -94,6 +105,7 @@ var devDependencies = {
 	"@types/node": "^16.11.9",
 	"@types/rollup": "^0.54.0",
 	rollup: "^2.60.0",
+	"rollup-plugin-copy": "^3.4.0",
 	"rollup-plugin-typescript2": "^0.31.0",
 	"ts-node": "^10.4.0",
 	typescript: "^4.5.2"
@@ -103,7 +115,7 @@ var pkg = {
 	version: version,
 	description: description,
 	author: author,
-	main: main,
+	main: main$1,
 	bin: bin,
 	repository: repository,
 	scripts: scripts,
@@ -190,6 +202,26 @@ function __awaiter(thisArg, _arguments, P, generator) {
     });
 }
 
+function __values(o) {
+    var s = typeof Symbol === "function" && Symbol.iterator, m = s && o[s], i = 0;
+    if (m) return m.call(o);
+    if (o && typeof o.length === "number") return {
+        next: function () {
+            if (o && i >= o.length) o = void 0;
+            return { value: o && o[i++], done: !o };
+        }
+    };
+    throw new TypeError(s ? "Object is not iterable." : "Symbol.iterator is not defined.");
+}
+
+function __asyncValues(o) {
+    if (!Symbol.asyncIterator) throw new TypeError("Symbol.asyncIterator is not defined.");
+    var m = o[Symbol.asyncIterator], i;
+    return m ? m.call(o) : (o = typeof __values === "function" ? __values(o) : o[Symbol.iterator](), i = {}, verb("next"), verb("throw"), verb("return"), i[Symbol.asyncIterator] = function () { return this; }, i);
+    function verb(n) { i[n] = o[n] && function (v) { return new Promise(function (resolve, reject) { v = o[n](v), settle(resolve, reject, v.done, v.value); }); }; }
+    function settle(resolve, reject, d, v) { Promise.resolve(v).then(function(v) { resolve({ value: v, done: d }); }, reject); }
+}
+
 /**
  * 模板下载
  */
@@ -230,8 +262,8 @@ const COMMAND = {
     INIT: "init",
     INIT_ALIAS: "i",
     // 创建
-    CREATE: 'create',
-    CREATE_ALIAS: 'c',
+    CREATE: "create",
+    CREATE_ALIAS: "c",
     // 换源
     CHANGE_REGISTRY: "change-registry",
     CHANGE_REGISTRY_ALIAS: "cr",
@@ -239,11 +271,14 @@ const COMMAND = {
     TEMPLATE: "template",
     TEMPLATE_ALIAS: "tp",
     // 部署
-    DEPLOY: 'deploy',
-    DEPLOY_ALIAS: 'dp',
+    DEPLOY: "deploy",
+    DEPLOY_ALIAS: "dp",
     // 配置
     CONFIG: "config",
-    CONFIG_ALIAS: 'cfg'
+    CONFIG_ALIAS: "cfg",
+    // 项目
+    PROJECT: "project",
+    PROJECT_ALIAS: "pt",
 };
 
 function createByTemplate() {
@@ -2732,10 +2767,518 @@ var configCommand = defineCommand({
     }
 });
 
+const toPath = urlOrPath => urlOrPath instanceof URL ? node_url.fileURLToPath(urlOrPath) : urlOrPath;
+
+async function readPackage({cwd, normalize = true} = {}) {
+	cwd = toPath(cwd) || process__default["default"].cwd();
+	const filePath = path__default["default"].resolve(cwd, 'package.json');
+	const json = parseJson__default["default"](await fs$1.promises.readFile(filePath, 'utf8'));
+
+	if (normalize) {
+		normalizePackageData__default["default"](json);
+	}
+
+	return json;
+}
+
+function isPlainObject(value) {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+
+	const prototype = Object.getPrototypeOf(value);
+	return (prototype === null || prototype === Object.prototype || Object.getPrototypeOf(prototype) === null) && !(Symbol.toStringTag in value) && !(Symbol.iterator in value);
+}
+
+function sortKeys(object, options = {}) {
+	if (!isPlainObject(object) && !Array.isArray(object)) {
+		throw new TypeError('Expected a plain object or array');
+	}
+
+	const {deep, compare} = options;
+	const seenInput = [];
+	const seenOutput = [];
+
+	const deepSortArray = array => {
+		const seenIndex = seenInput.indexOf(array);
+		if (seenIndex !== -1) {
+			return seenOutput[seenIndex];
+		}
+
+		const result = [];
+		seenInput.push(array);
+		seenOutput.push(result);
+
+		result.push(...array.map(item => {
+			if (Array.isArray(item)) {
+				return deepSortArray(item);
+			}
+
+			if (isPlainObject(item)) {
+				return _sortKeys(item);
+			}
+
+			return item;
+		}));
+
+		return result;
+	};
+
+	const _sortKeys = object => {
+		const seenIndex = seenInput.indexOf(object);
+		if (seenIndex !== -1) {
+			return seenOutput[seenIndex];
+		}
+
+		const result = {};
+		const keys = Object.keys(object).sort(compare);
+
+		seenInput.push(object);
+		seenOutput.push(result);
+
+		for (const key of keys) {
+			const value = object[key];
+			let newValue;
+
+			if (deep && Array.isArray(value)) {
+				newValue = deepSortArray(value);
+			} else {
+				newValue = deep && isPlainObject(value) ? _sortKeys(value) : value;
+			}
+
+			Object.defineProperty(result, key, {
+				...Object.getOwnPropertyDescriptor(object, key),
+				value: newValue
+			});
+		}
+
+		return result;
+	};
+
+	if (Array.isArray(object)) {
+		return deep ? deepSortArray(object) : object.slice();
+	}
+
+	return _sortKeys(object);
+}
+
+// Detect either spaces or tabs but not both to properly handle tabs for indentation and spaces for alignment
+const INDENT_REGEX = /^(?:( )+|\t+)/;
+
+const INDENT_TYPE_SPACE = 'space';
+const INDENT_TYPE_TAB = 'tab';
+
+/**
+Make a Map that counts how many indents/unindents have occurred for a given size and how many lines follow a given indentation.
+
+The key is a concatenation of the indentation type (s = space and t = tab) and the size of the indents/unindents.
+
+```
+indents = {
+	t3: [1, 0],
+	t4: [1, 5],
+	s5: [1, 0],
+	s12: [1, 0],
+}
+```
+*/
+function makeIndentsMap(string, ignoreSingleSpaces) {
+	const indents = new Map();
+
+	// Remember the size of previous line's indentation
+	let previousSize = 0;
+	let previousIndentType;
+
+	// Indents key (ident type + size of the indents/unindents)
+	let key;
+
+	for (const line of string.split(/\n/g)) {
+		if (!line) {
+			// Ignore empty lines
+			continue;
+		}
+
+		let indent;
+		let indentType;
+		let use;
+		let weight;
+		let entry;
+		const matches = line.match(INDENT_REGEX);
+
+		if (matches === null) {
+			previousSize = 0;
+			previousIndentType = '';
+		} else {
+			indent = matches[0].length;
+			indentType = matches[1] ? INDENT_TYPE_SPACE : INDENT_TYPE_TAB;
+
+			// Ignore single space unless it's the only indent detected to prevent common false positives
+			if (ignoreSingleSpaces && indentType === INDENT_TYPE_SPACE && indent === 1) {
+				continue;
+			}
+
+			if (indentType !== previousIndentType) {
+				previousSize = 0;
+			}
+
+			previousIndentType = indentType;
+
+			use = 1;
+			weight = 0;
+
+			const indentDifference = indent - previousSize;
+			previousSize = indent;
+
+			// Previous line have same indent?
+			if (indentDifference === 0) {
+				// Not a new "use" of the current indent:
+				use = 0;
+				// But do add a bit to it for breaking ties:
+				weight = 1;
+				// We use the key from previous loop
+			} else {
+				const absoluteIndentDifference = indentDifference > 0 ? indentDifference : -indentDifference;
+				key = encodeIndentsKey(indentType, absoluteIndentDifference);
+			}
+
+			// Update the stats
+			entry = indents.get(key);
+			entry = entry === undefined ? [1, 0] : [entry[0] + use, entry[1] + weight];
+
+			indents.set(key, entry);
+		}
+	}
+
+	return indents;
+}
+
+// Encode the indent type and amount as a string (e.g. 's4') for use as a compound key in the indents Map.
+function encodeIndentsKey(indentType, indentAmount) {
+	const typeCharacter = indentType === INDENT_TYPE_SPACE ? 's' : 't';
+	return typeCharacter + String(indentAmount);
+}
+
+// Extract the indent type and amount from a key of the indents Map.
+function decodeIndentsKey(indentsKey) {
+	const keyHasTypeSpace = indentsKey[0] === 's';
+	const type = keyHasTypeSpace ? INDENT_TYPE_SPACE : INDENT_TYPE_TAB;
+
+	const amount = Number(indentsKey.slice(1));
+
+	return {type, amount};
+}
+
+// Return the key (e.g. 's4') from the indents Map that represents the most common indent,
+// or return undefined if there are no indents.
+function getMostUsedKey(indents) {
+	let result;
+	let maxUsed = 0;
+	let maxWeight = 0;
+
+	for (const [key, [usedCount, weight]] of indents) {
+		if (usedCount > maxUsed || (usedCount === maxUsed && weight > maxWeight)) {
+			maxUsed = usedCount;
+			maxWeight = weight;
+			result = key;
+		}
+	}
+
+	return result;
+}
+
+function makeIndentString(type, amount) {
+	const indentCharacter = type === INDENT_TYPE_SPACE ? ' ' : '\t';
+	return indentCharacter.repeat(amount);
+}
+
+function detectIndent(string) {
+	if (typeof string !== 'string') {
+		throw new TypeError('Expected a string');
+	}
+
+	// Identify indents while skipping single space indents to avoid common edge cases (e.g. code comments)
+	// If no indents are identified, run again and include all indents for comprehensive detection
+	let indents = makeIndentsMap(string, true);
+	if (indents.size === 0) {
+		indents = makeIndentsMap(string, false);
+	}
+
+	const keyOfMostUsedIndent = getMostUsedKey(indents);
+
+	let type;
+	let amount = 0;
+	let indent = '';
+
+	if (keyOfMostUsedIndent !== undefined) {
+		({type, amount} = decodeIndentsKey(keyOfMostUsedIndent));
+		indent = makeIndentString(type, amount);
+	}
+
+	return {
+		amount,
+		type,
+		indent,
+	};
+}
+
+const init = (function_, filePath, data, options) => {
+	if (!filePath) {
+		throw new TypeError('Expected a filepath');
+	}
+
+	if (data === undefined) {
+		throw new TypeError('Expected data to stringify');
+	}
+
+	options = {
+		indent: '\t',
+		sortKeys: false,
+		...options,
+	};
+
+	if (options.sortKeys && isPlainObject(data)) {
+		data = sortKeys(data, {
+			deep: true,
+			compare: typeof options.sortKeys === 'function' ? options.sortKeys : undefined,
+		});
+	}
+
+	return function_(filePath, data, options);
+};
+
+const main = async (filePath, data, options) => {
+	let {indent} = options;
+	let trailingNewline = '\n';
+	try {
+		const file = await fs$1.promises.readFile(filePath, 'utf8');
+		if (!file.endsWith('\n')) {
+			trailingNewline = '';
+		}
+
+		if (options.detectIndent) {
+			indent = detectIndent(file).indent;
+		}
+	} catch (error) {
+		if (error.code !== 'ENOENT') {
+			throw error;
+		}
+	}
+
+	const json = JSON.stringify(data, options.replacer, indent);
+
+	return writeFileAtomic__default["default"](filePath, `${json}${trailingNewline}`, {mode: options.mode, chown: false});
+};
+
+async function writeJsonFile(filePath, data, options) {
+	await fs$1.promises.mkdir(path__default["default"].dirname(filePath), {recursive: true});
+	await init(main, filePath, data, options);
+}
+
+const dependencyKeys = new Set([
+	'dependencies',
+	'devDependencies',
+	'optionalDependencies',
+	'peerDependencies',
+]);
+
+function normalize(packageJson) {
+	const result = {};
+
+	for (const key of Object.keys(packageJson)) {
+		if (!dependencyKeys.has(key)) {
+			result[key] = packageJson[key];
+		} else if (Object.keys(packageJson[key]).length > 0) {
+			result[key] = sortKeys(packageJson[key]);
+		}
+	}
+
+	return result;
+}
+
+async function writePackage(filePath, data, options) {
+	if (typeof filePath !== 'string') {
+		options = data;
+		data = filePath;
+		filePath = '.';
+	}
+
+	options = {
+		normalize: true,
+		...options,
+		detectIndent: true,
+	};
+
+	filePath = path__default["default"].basename(filePath) === 'package.json' ? filePath : path__default["default"].join(filePath, 'package.json');
+
+	data = options.normalize ? normalize(data) : data;
+
+	return writeJsonFile(filePath, data, options);
+}
+
+const config = {
+    git: {
+        files: [],
+        packages: [],
+    },
+    editor: {
+        files: [".editorconfig"],
+        packages: [],
+    },
+    eslint: {
+        files: [".eslintignore"],
+        packages: [],
+        commands: [{ name: "lint", script: "eslint --cache" }],
+        extraArgs: {
+            "lint-staged": {
+                "*": ["prettier --write --cache --ignore-unknown"],
+                "packages/*/{src,types}/**/*.ts": ["eslint --cache --fix"],
+                "packages/**/*.d.ts": ["eslint --cache --fix"],
+                "playground/**/__tests__/**/*.ts": ["eslint --cache --fix"],
+            },
+        },
+    },
+    typescript: {
+        files: ["tsconfig.json"],
+        packages: [
+            { name: "typescript", version: "^4.9.3", type: "devDependencies" },
+        ],
+    },
+};
+function copyFiles(files) {
+    var files_1, files_1_1;
+    var e_1, _a;
+    return __awaiter(this, void 0, void 0, function* () {
+        try {
+            for (files_1 = __asyncValues(files); files_1_1 = yield files_1.next(), !files_1_1.done;) {
+                const filePath = files_1_1.value;
+                yield promises.copyFile(fsPath.join(__dirname, "./assets/project", filePath), fsPath.join(process.cwd(), filePath));
+            }
+        }
+        catch (e_1_1) { e_1 = { error: e_1_1 }; }
+        finally {
+            try {
+                if (files_1_1 && !files_1_1.done && (_a = files_1.return)) yield _a.call(files_1);
+            }
+            finally { if (e_1) throw e_1.error; }
+        }
+    });
+}
+function writePackageInfo(packages) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const pkg = yield readPackage();
+        packages.forEach((packageInfo) => {
+            if (packageInfo.type === "dependencies") {
+                if (!pkg.dependencies) {
+                    pkg.dependencies = {};
+                }
+                pkg.dependencies[packageInfo.name] = packageInfo.version;
+            }
+            else {
+                if (!pkg.devDependencies) {
+                    pkg.devDependencies = {};
+                }
+                pkg.devDependencies[packageInfo.name] = packageInfo.version;
+            }
+        });
+        yield writePackage(pkg);
+    });
+}
+function writeCommand(commands) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const pkg = yield readPackage();
+        commands.forEach((command) => {
+            pkg.scripts[command.name] = command.script;
+        });
+        yield writePackage(pkg);
+    });
+}
+function writeExtraArgs(extraArgs) {
+    return __awaiter(this, void 0, void 0, function* () {
+        const pkg = yield readPackage();
+        for (const key in extraArgs) {
+            pkg[key] = extraArgs[key];
+        }
+        yield writePackage(pkg);
+    });
+}
+var projectCommand = defineCommand({
+    name: COMMAND.PROJECT,
+    use: (ctx) => {
+        // 更改淘宝源
+        ctx.program
+            .command(COMMAND.PROJECT)
+            .alias(COMMAND.PROJECT_ALIAS)
+            .description("项目配置")
+            .action(() => __awaiter(void 0, void 0, void 0, function* () {
+            const ans = yield inquirer__default["default"].prompt([
+                {
+                    name: "type",
+                    type: "list",
+                    message: `选择项目配置`,
+                    choices: ["all", "custom"],
+                },
+                {
+                    name: "customConfig",
+                    type: "checkbox",
+                    message: "自定义配置",
+                    choices: ["git", "eslint", "prettier", "editor", "typescript"],
+                    when: ({ type }) => {
+                        return type === "custom";
+                    },
+                },
+            ]);
+            try {
+                let files = [];
+                let packages = [];
+                let commands = [];
+                let extraArgs = {};
+                // 安装所有
+                if (ans.type === "all") {
+                    files = [...config.eslint.files, ...config.editor.files];
+                    for (const key of Object.keys(config)) {
+                        const _files = config[key].files || [];
+                        const _packages = config[key].packages || [];
+                        const _commands = config[key].commands || [];
+                        const _extraArgs = config[key].extraArgs || {};
+                        files.push(..._files);
+                        packages.push(..._packages);
+                        commands.push(..._commands);
+                        extraArgs = Object.assign(Object.assign({}, extraArgs), _extraArgs);
+                    }
+                }
+                else {
+                    // TODO 自定义安装
+                    console.log("ans:", ans.customConfig);
+                }
+                // 拷贝文件
+                if (files.length > 0) {
+                    yield copyFiles(files);
+                }
+                // 写入配置
+                if (packages.length > 0) {
+                    yield writePackageInfo(packages);
+                }
+                // 写入命令
+                if (commands.length > 0) {
+                    yield writeCommand(commands);
+                }
+                // 写入额外属性
+                if (Object.keys(extraArgs).length > 0) {
+                    yield writeExtraArgs(extraArgs);
+                }
+                success(`已添加配置，请执行安装命令`);
+            }
+            catch (err) {
+                error(err);
+            }
+        }));
+    },
+});
+
 // 初始化数据
 program.name(PROJECT_NAME).usage("[command] [options]");
 // 命令行
-const commands = [createCommand, registryCommand, templateCommand, deployCommand, configCommand];
+const commands = [createCommand, registryCommand, templateCommand, deployCommand, configCommand, projectCommand];
 for (const command of commands) {
     // 加载命令
     command.use({ program });
