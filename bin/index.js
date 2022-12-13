@@ -31,7 +31,6 @@ var fs$1 = require('node:fs');
 var node_url = require('node:url');
 var parseJson = require('parse-json');
 var normalizePackageData = require('normalize-package-data');
-var promises = require('fs/promises');
 var writeFileAtomic = require('write-file-atomic');
 
 function _interopDefaultLegacy (e) { return e && typeof e === 'object' && 'default' in e ? e : { 'default': e }; }
@@ -85,7 +84,7 @@ var dependencies = {
 	execa: "^6.0.0",
 	"extract-zip": "^2.0.1",
 	figlet: "^1.5.2",
-	"fs-extra": "^10.0.0",
+	"fs-extra": "^11.1.0",
 	gitly: "^2.2.1",
 	inquirer: "^8.2.0",
 	"node-ssh": "11.1.1",
@@ -3115,35 +3114,121 @@ async function writePackage(filePath, data, options) {
 	return writeJsonFile(filePath, data, options);
 }
 
+/**
+ * 如果是一个函数则调用后返回
+ * @param func
+ * @param args
+ */
+function runIt(func, args) {
+    if (typeof func === "function") {
+        return func(...args);
+    }
+    return func;
+}
+
+/**
+ * 配置
+ * files的路径基于 assets 目录
+ */
 const config = {
     git: {
-        files: [],
-        packages: [],
-    },
-    editor: {
-        files: [".editorconfig"],
-        packages: [],
-    },
-    eslint: {
-        files: [".eslintignore"],
-        packages: [],
-        commands: [{ name: "lint", script: "eslint --cache" }],
+        files: ["git/.husky", "git/commitlint.config.js"],
+        packages: [
+            {
+                name: "husky",
+                version: "^8.0.1",
+                type: "devDependencies",
+            },
+            {
+                name: "lint-staged",
+                version: "^13.0.3",
+                type: "devDependencies",
+            },
+            {
+                name: "@commitlint/cli",
+                version: "^17.3.0",
+                type: "devDependencies",
+            },
+            {
+                name: "@commitlint/config-conventional",
+                version: "^17.3.0",
+                type: "devDependencies",
+            },
+        ],
+        scripts: [{ name: "prepare", script: "npx husky install" }],
         extraArgs: {
             "lint-staged": {
-                "*": ["prettier --write --cache --ignore-unknown"],
-                "packages/*/{src,types}/**/*.ts": ["eslint --cache --fix"],
-                "packages/**/*.d.ts": ["eslint --cache --fix"],
-                "playground/**/__tests__/**/*.ts": ["eslint --cache --fix"],
+                value: {
+                    "*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
+                    "*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write",
+                },
+                when: (choices) => choices.includes("eslint"),
             },
         },
     },
+    editor: {
+        files: ["editor/.editorconfig"],
+        packages: [],
+    },
+    prettier: {
+        files: ["prettier/.prettierrc.json", "prettier/.prettierignore"],
+        packages: [{ name: "prettier", version: "^2.8.1" }],
+    },
+    eslint: {
+        files: ["eslint/.eslintignore", "eslint/.eslintrc.cjs"],
+        packages: [
+            { name: "eslint", version: "^8.29.0", type: "devDependencies" },
+            {
+                name: "@antfu/eslint-config",
+                version: "^0.34.0",
+                type: "devDependencies",
+            },
+            {
+                name: "eslint-config-prettier",
+                version: "^8.0.0",
+                when: (choices) => choices.includes("prettier"),
+            },
+            {
+                name: "eslint-plugin-prettier",
+                version: "^4.2.1",
+                when: (choices) => choices.includes("prettier"),
+            },
+        ],
+        scripts: [
+            {
+                name: "lint",
+                script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx .",
+            },
+        ],
+    },
     typescript: {
-        files: ["tsconfig.json"],
+        files: ["typescript/tsconfig.json"],
         packages: [
             { name: "typescript", version: "^4.9.3", type: "devDependencies" },
         ],
     },
 };
+/**
+ * 排除when ==== false的数据
+ * @param data
+ * @param choices
+ * @returns
+ */
+function filterFalse(data, choices) {
+    if (Array.isArray(data)) {
+        return data.filter((item) => runIt(item.when, [choices]) !== false);
+    }
+    else {
+        const newData = {};
+        for (const key in data) {
+            const value = data[key];
+            if (runIt(value.when, [choices]) !== false) {
+                newData[key] = value;
+            }
+        }
+        return newData;
+    }
+}
 function copyFiles(files) {
     var files_1, files_1_1;
     var e_1, _a;
@@ -3151,7 +3236,7 @@ function copyFiles(files) {
         try {
             for (files_1 = __asyncValues(files); files_1_1 = yield files_1.next(), !files_1_1.done;) {
                 const filePath = files_1_1.value;
-                yield promises.copyFile(fsPath.join(__dirname, "./assets/project", filePath), fsPath.join(process.cwd(), filePath));
+                yield fsExtra.copy(fsPath.join(__dirname, "./assets/project", filePath), fsPath.join(process.cwd(), fsPath.basename(filePath)), { recursive: true });
             }
         }
         catch (e_1_1) { e_1 = { error: e_1_1 }; }
@@ -3183,11 +3268,11 @@ function writePackageInfo(packages) {
         yield writePackage(pkg);
     });
 }
-function writeCommand(commands) {
+function writeScripts(scripts) {
     return __awaiter(this, void 0, void 0, function* () {
         const pkg = yield readPackage();
-        commands.forEach((command) => {
-            pkg.scripts[command.name] = command.script;
+        scripts.forEach((script) => {
+            pkg.scripts[script.name] = script.script;
         });
         yield writePackage(pkg);
     });
@@ -3196,7 +3281,7 @@ function writeExtraArgs(extraArgs) {
     return __awaiter(this, void 0, void 0, function* () {
         const pkg = yield readPackage();
         for (const key in extraArgs) {
-            pkg[key] = extraArgs[key];
+            pkg[key] = extraArgs[key].value;
         }
         yield writePackage(pkg);
     });
@@ -3218,37 +3303,38 @@ var projectCommand = defineCommand({
                     choices: ["all", "custom"],
                 },
                 {
-                    name: "customConfig",
+                    name: "customChoices",
                     type: "checkbox",
                     message: "自定义配置",
-                    choices: ["git", "eslint", "prettier", "editor", "typescript"],
+                    choices: Object.keys(config),
                     when: ({ type }) => {
                         return type === "custom";
                     },
                 },
             ]);
             try {
+                let choices = [];
                 let files = [];
                 let packages = [];
-                let commands = [];
+                let scripts = [];
                 let extraArgs = {};
                 // 安装所有
                 if (ans.type === "all") {
-                    files = [...config.eslint.files, ...config.editor.files];
-                    for (const key of Object.keys(config)) {
-                        const _files = config[key].files || [];
-                        const _packages = config[key].packages || [];
-                        const _commands = config[key].commands || [];
-                        const _extraArgs = config[key].extraArgs || {};
-                        files.push(..._files);
-                        packages.push(..._packages);
-                        commands.push(..._commands);
-                        extraArgs = Object.assign(Object.assign({}, extraArgs), _extraArgs);
-                    }
+                    choices = Object.keys(config);
                 }
                 else {
-                    // TODO 自定义安装
-                    console.log("ans:", ans.customConfig);
+                    // 自定义安装
+                    choices = ans.customChoices;
+                }
+                for (const key of choices) {
+                    const _files = config[key].files || [];
+                    const _packages = config[key].packages || [];
+                    const _scripts = config[key].scripts || [];
+                    const _extraArgs = config[key].extraArgs || {};
+                    files.push(..._files);
+                    packages.push(...filterFalse(_packages, choices));
+                    scripts.push(...filterFalse(_scripts, choices));
+                    extraArgs = Object.assign(Object.assign({}, extraArgs), filterFalse(_extraArgs, choices));
                 }
                 // 拷贝文件
                 if (files.length > 0) {
@@ -3259,8 +3345,8 @@ var projectCommand = defineCommand({
                     yield writePackageInfo(packages);
                 }
                 // 写入命令
-                if (commands.length > 0) {
-                    yield writeCommand(commands);
+                if (scripts.length > 0) {
+                    yield writeScripts(scripts);
                 }
                 // 写入额外属性
                 if (Object.keys(extraArgs).length > 0) {

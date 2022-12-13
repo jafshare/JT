@@ -3,60 +3,147 @@ import inquirer from "inquirer";
 import COMMAND from "@/constant/command";
 import { error, success, underlineAndBold } from "@/lib/log";
 import defineCommand from "../defineCommand";
+import { copy } from "fs-extra";
+import { join, basename } from "path";
 import { readPackage } from "read-pkg";
-import { copyFile } from "fs/promises";
-import { join } from "path";
 import { writePackage } from "write-pkg";
+import { runIt } from "@/utils/runIt";
+export type WhenType = {
+  // 是否会出现,仅当when === false则不会出现
+  when?: boolean | ((choices: string[]) => boolean);
+};
 export type PackageRecord = {
   name: string;
   version: string;
   type?: "devDependencies" | "dependencies";
-};
-export type CommandRecord = { name: string; script: string };
+} & WhenType;
+export type ScriptRecord = {
+  name: string;
+  script: string;
+} & WhenType;
 export type ConfigRecord = Record<
   string,
   {
     files: string[];
     packages: PackageRecord[];
-    commands?: CommandRecord[];
+    scripts?: ScriptRecord[];
     // 任意属性
-    extraArgs?: Record<string, any>;
+    extraArgs?: Record<string, { value: any } & WhenType>;
   }
 >;
+/**
+ * 配置
+ * files的路径基于 assets 目录
+ */
 const config: ConfigRecord = {
   git: {
-    files: [],
-    packages: [],
-  },
-  editor: {
-    files: [".editorconfig"],
-    packages: [],
-  },
-  eslint: {
-    files: [".eslintignore"],
-    packages: [],
-    commands: [{ name: "lint", script: "eslint --cache" }],
+    files: ["git/.husky", "git/commitlint.config.js"],
+    packages: [
+      {
+        name: "husky",
+        version: "^8.0.1",
+        type: "devDependencies",
+      },
+      {
+        name: "lint-staged",
+        version: "^13.0.3",
+        type: "devDependencies",
+      },
+      {
+        name: "@commitlint/cli",
+        version: "^17.3.0",
+        type: "devDependencies",
+      },
+      {
+        name: "@commitlint/config-conventional",
+        version: "^17.3.0",
+        type: "devDependencies",
+      },
+    ],
+    scripts: [{ name: "prepare", script: "npx husky install" }],
     extraArgs: {
       "lint-staged": {
-        "*": ["prettier --write --cache --ignore-unknown"],
-        "packages/*/{src,types}/**/*.ts": ["eslint --cache --fix"],
-        "packages/**/*.d.ts": ["eslint --cache --fix"],
-        "playground/**/__tests__/**/*.ts": ["eslint --cache --fix"],
+        value: {
+          "*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
+          "*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write",
+        },
+        when: (choices) => choices.includes("eslint"),
       },
     },
   },
+  editor: {
+    files: ["editor/.editorconfig"],
+    packages: [],
+  },
+  prettier: {
+    files: ["prettier/.prettierrc.json", "prettier/.prettierignore"],
+    packages: [{ name: "prettier", version: "^2.8.1" }],
+  },
+  eslint: {
+    files: ["eslint/.eslintignore", "eslint/.eslintrc.cjs"],
+    packages: [
+      { name: "eslint", version: "^8.29.0", type: "devDependencies" },
+      {
+        name: "@antfu/eslint-config",
+        version: "^0.34.0",
+        type: "devDependencies",
+      },
+      {
+        name: "eslint-config-prettier",
+        version: "^8.0.0",
+        when: (choices) => choices.includes("prettier"),
+      },
+      {
+        name: "eslint-plugin-prettier",
+        version: "^4.2.1",
+        when: (choices) => choices.includes("prettier"),
+      },
+    ],
+    scripts: [
+      {
+        name: "lint",
+        script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx .",
+      },
+    ],
+  },
   typescript: {
-    files: ["tsconfig.json"],
+    files: ["typescript/tsconfig.json"],
     packages: [
       { name: "typescript", version: "^4.9.3", type: "devDependencies" },
     ],
   },
 };
+/**
+ * 排除when ==== false的数据
+ * @param data
+ * @param choices
+ * @returns
+ */
+function filterFalse(
+  data:
+    | ({ [propName: string]: any } & WhenType)[]
+    | Record<string, { [propName: string]: any } & WhenType>,
+  choices: string[]
+) {
+  if (Array.isArray(data)) {
+    return data.filter((item) => runIt(item.when, [choices]) !== false);
+  } else {
+    const newData: any = {};
+    for (const key in data) {
+      const value = data[key];
+      if (runIt(value.when, [choices]) !== false) {
+        newData[key] = value;
+      }
+    }
+    return newData;
+  }
+}
 async function copyFiles(files: string[]) {
   for await (const filePath of files) {
-    await copyFile(
+    await copy(
       join(__dirname, "./assets/project", filePath),
-      join(process.cwd(), filePath)
+      join(process.cwd(), basename(filePath)),
+      { recursive: true }
     );
   }
 }
@@ -77,17 +164,17 @@ async function writePackageInfo(packages: PackageRecord[]) {
   });
   await writePackage(pkg);
 }
-async function writeCommand(commands: CommandRecord[]) {
+async function writeScripts(scripts: ScriptRecord[]) {
   const pkg = await readPackage();
-  commands.forEach((command) => {
-    pkg.scripts![command.name] = command.script;
+  scripts.forEach((script) => {
+    pkg.scripts![script.name] = script.script;
   });
   await writePackage(pkg);
 }
 async function writeExtraArgs(extraArgs: Record<string, any>) {
   const pkg = await readPackage();
   for (const key in extraArgs) {
-    pkg[key] = extraArgs[key];
+    pkg[key] = extraArgs[key].value;
   }
   await writePackage(pkg);
 }
@@ -108,36 +195,37 @@ export default defineCommand({
             choices: ["all", "custom"],
           },
           {
-            name: "customConfig",
+            name: "customChoices",
             type: "checkbox",
             message: "自定义配置",
-            choices: ["git", "eslint", "prettier", "editor", "typescript"],
+            choices: Object.keys(config),
             when: ({ type }) => {
               return type === "custom";
             },
           },
         ]);
         try {
+          let choices: string[] = [];
           let files: string[] = [];
           let packages: PackageRecord[] = [];
-          let commands: CommandRecord[] = [];
+          let scripts: ScriptRecord[] = [];
           let extraArgs: Record<string, any> = {};
           // 安装所有
           if (ans.type === "all") {
-            files = [...config.eslint.files, ...config.editor.files];
-            for (const key of Object.keys(config)) {
-              const _files = config[key].files || [];
-              const _packages = config[key].packages || [];
-              const _commands = config[key].commands || [];
-              const _extraArgs = config[key].extraArgs || {};
-              files.push(..._files);
-              packages.push(..._packages);
-              commands.push(..._commands);
-              extraArgs = { ...extraArgs, ..._extraArgs };
-            }
+            choices = Object.keys(config);
           } else {
-            // TODO 自定义安装
-            console.log("ans:", ans.customConfig);
+            // 自定义安装
+            choices = ans.customChoices;
+          }
+          for (const key of choices) {
+            const _files = config[key].files || [];
+            const _packages = config[key].packages || [];
+            const _scripts = config[key].scripts || [];
+            const _extraArgs = config[key].extraArgs || {};
+            files.push(..._files);
+            packages.push(...filterFalse(_packages, choices));
+            scripts.push(...filterFalse(_scripts, choices));
+            extraArgs = { ...extraArgs, ...filterFalse(_extraArgs, choices) };
           }
           // 拷贝文件
           if (files.length > 0) {
@@ -148,8 +236,8 @@ export default defineCommand({
             await writePackageInfo(packages);
           }
           // 写入命令
-          if (commands.length > 0) {
-            await writeCommand(commands);
+          if (scripts.length > 0) {
+            await writeScripts(scripts);
           }
           // 写入额外属性
           if (Object.keys(extraArgs).length > 0) {
