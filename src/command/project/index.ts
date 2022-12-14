@@ -13,6 +13,12 @@ export interface WhenType {
   // 是否会出现,仅当when === false则不会出现
   when?: boolean | ((choices: string[]) => boolean);
 }
+export interface FileDescriptor {
+  source: string;
+  dest: string;
+}
+export type FileType = string | ((choices: string[]) => string);
+export type FileRecord = FileType | { source: FileType; dest: FileType };
 export type PackageRecord = {
   name: string;
   version: string;
@@ -135,25 +141,35 @@ function filterFalse(
   choices: string[]
 ) {
   if (Array.isArray(data)) {
-    return data.filter((item) => runIt(item.when, [choices]) !== false);
+    return data.filter((item) => runIt(item.when, choices) !== false);
   } else {
     const newData: any = {};
     for (const key in data) {
       const value = data[key];
-      if (runIt(value.when, [choices]) !== false) {
+      if (runIt(value.when, choices) !== false) {
         newData[key] = value;
       }
     }
     return newData;
   }
 }
-async function copyFiles(files: string[]) {
-  for await (const filePath of files) {
-    await copy(
-      join(__dirname, "./assets/project", filePath),
-      join(process.cwd(), basename(filePath)),
-      { recursive: true }
-    );
+function formatFiles(files: FileRecord[], choices: string[]): FileDescriptor[] {
+  return files.map((file) => {
+    const _file = runIt(file, choices);
+    if (typeof _file === "string") {
+      return { source: _file, dest: basename(_file) };
+    } else if (typeof _file === "object") {
+      return { source: runIt(_file.source), dest: runIt(_file.dest) };
+    } else {
+      throw new TypeError(`错误的数据类型${typeof _file}`);
+    }
+  });
+}
+async function copyFiles(files: FileDescriptor[]) {
+  for await (const copyDesc of files) {
+    const source = join(__dirname, "./assets/project", copyDesc.source);
+    const dest = join(process.cwd(), copyDesc.dest);
+    await copy(source, dest, { recursive: true });
   }
 }
 async function writePackageInfo(packages: PackageRecord[]) {
@@ -216,7 +232,7 @@ export default defineCommand({
         ]);
         try {
           let choices: string[] = [];
-          const files: string[] = [];
+          const files: FileDescriptor[] = [];
           const packages: PackageRecord[] = [];
           const scripts: ScriptRecord[] = [];
           let extraArgs: Record<string, any> = {};
@@ -232,7 +248,8 @@ export default defineCommand({
             const _packages = config[key].packages || [];
             const _scripts = config[key].scripts || [];
             const _extraArgs = config[key].extraArgs || {};
-            files.push(..._files);
+            // 转换file的格式
+            files.push(...formatFiles(_files, choices));
             packages.push(...filterFalse(_packages, choices));
             scripts.push(...filterFalse(_scripts, choices));
             extraArgs = { ...extraArgs, ...filterFalse(_extraArgs, choices) };

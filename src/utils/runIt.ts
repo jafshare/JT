@@ -3,7 +3,7 @@
  * @param func
  * @param args
  */
-export function runIt(func: any, args: any[]) {
+export function runIt(func: any, ...args: any[]) {
   if (typeof func === "function") {
     return func(...args);
   }
