@@ -4,6 +4,7 @@ import inquirer from "inquirer";
 import { copy } from "fs-extra";
 import { readPackage } from "read-pkg";
 import { writePackage } from "write-pkg";
+import latestVersion from "latest-version";
 import defineCommand from "../defineCommand";
 import { error, success } from "@/lib/log";
 import COMMAND from "@/constant/command";
@@ -35,83 +36,91 @@ export type ConfigRecord = Record<
  * 配置
  * files的路径基于 assets 目录
  */
-const config: ConfigRecord = {
-  git: {
-    files: ["git/.husky", "git/commitlint.config.js"],
-    packages: [
-      {
-        name: "husky",
-        version: "^8.0.1",
-        type: "devDependencies"
-      },
-      {
-        name: "lint-staged",
-        version: "^13.0.3",
-        type: "devDependencies"
-      },
-      {
-        name: "@commitlint/cli",
-        version: "^17.3.0",
-        type: "devDependencies"
-      },
-      {
-        name: "@commitlint/config-conventional",
-        version: "^17.3.0",
-        type: "devDependencies"
-      }
-    ],
-    scripts: [{ name: "prepare", script: "npx husky install" }],
-    extraArgs: {
-      "lint-staged": {
-        value: {
-          "*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
-          "*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write"
+const getConfig = async (): Promise<ConfigRecord> => {
+  return {
+    git: {
+      files: ["git/.husky", "git/commitlint.config.js"],
+      packages: [
+        {
+          name: "husky",
+          version: "^8.0.1",
+          type: "devDependencies"
         },
-        when: (choices) => choices.includes("eslint")
+        {
+          name: "lint-staged",
+          version: "^13.0.3",
+          type: "devDependencies"
+        },
+        {
+          name: "@commitlint/cli",
+          version: "^17.3.0",
+          type: "devDependencies"
+        },
+        {
+          name: "@commitlint/config-conventional",
+          version: "^17.3.0",
+          type: "devDependencies"
+        }
+      ],
+      scripts: [{ name: "prepare", script: "npx husky install" }],
+      extraArgs: {
+        "lint-staged": {
+          value: {
+            "*.{ts,tsx,js,jsx}":
+              "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
+            "*.{js,jsx,tsx,ts,less,md,json}":
+              "prettier --ignore-unknown --write"
+          },
+          when: (choices) => choices.includes("eslint")
+        }
       }
+    },
+    editor: {
+      files: ["editor/.editorconfig"],
+      packages: []
+    },
+    prettier: {
+      files: ["prettier/.prettierrc.json", "prettier/.prettierignore"],
+      packages: [{ name: "prettier", version: "^2.8.1" }]
+    },
+    eslint: {
+      files: ["eslint/.eslintignore", "eslint/.eslintrc.cjs"],
+      packages: [
+        { name: "eslint", version: "^8.29.0", type: "devDependencies" },
+        {
+          name: "@antfu/eslint-config",
+          version: await latestVersion("@antfu/eslint-config"),
+          type: "devDependencies"
+        },
+        {
+          name: "eslint-config-prettier",
+          version: "^8.0.0",
+          when: (choices) => choices.includes("prettier")
+        },
+        {
+          name: "eslint-plugin-prettier",
+          version: "^4.2.1",
+          when: (choices) => choices.includes("prettier")
+        }
+      ],
+      scripts: [
+        {
+          name: "lint",
+          script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ."
+        }
+      ]
+    },
+    typescript: {
+      files: ["typescript/tsconfig.json"],
+      packages: [
+        {
+          name: "typescript",
+          version: await latestVersion("typescript"),
+          type: "devDependencies"
+        }
+      ]
     }
-  },
-  editor: {
-    files: ["editor/.editorconfig"],
-    packages: []
-  },
-  prettier: {
-    files: ["prettier/.prettierrc.json", "prettier/.prettierignore"],
-    packages: [{ name: "prettier", version: "^2.8.1" }]
-  },
-  eslint: {
-    files: ["eslint/.eslintignore", "eslint/.eslintrc.cjs"],
-    packages: [
-      { name: "eslint", version: "^8.29.0", type: "devDependencies" },
-      {
-        name: "@antfu/eslint-config",
-        version: "^0.34.0",
-        type: "devDependencies"
-      },
-      {
-        name: "eslint-config-prettier",
-        version: "^8.0.0",
-        when: (choices) => choices.includes("prettier")
-      },
-      {
-        name: "eslint-plugin-prettier",
-        version: "^4.2.1",
-        when: (choices) => choices.includes("prettier")
-      }
-    ],
-    scripts: [
-      {
-        name: "lint",
-        script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ."
-      }
-    ]
-  },
-  typescript: {
-    files: ["typescript/tsconfig.json"],
-    packages: [
-      { name: "typescript", version: "^4.9.3", type: "devDependencies" }
-    ]
-  }
+  };
 };
 /**
  * 排除when ==== false的数据
@@ -187,6 +196,7 @@ export default defineCommand({
       .alias(COMMAND.PROJECT_ALIAS)
       .description("项目配置")
       .action(async () => {
+        const config = await getConfig();
         const ans = await inquirer.prompt([
           {
             name: "type",
