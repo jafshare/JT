@@ -22,6 +22,7 @@ export interface ScriptRecord {
   name: string;
   script: string;
 }
+export type FrameworkType = "node" | "vue" | "react";
 export type ChoiceType =
   | "git"
   | "editor"
@@ -31,7 +32,7 @@ export type ChoiceType =
 export type ConfigRecord = Record<
   ChoiceType,
   {
-    files: string[];
+    files: FileRecord[];
     packages: (PackageRecord | false)[];
     scripts?: (ScriptRecord | false)[];
     // 任意属性
@@ -49,7 +50,33 @@ const allChoices: ChoiceType[] = [
  * 配置
  * files的路径基于 assets 目录
  */
-const getConfig = async (choices: string[] = []): Promise<ConfigRecord> => {
+const getConfig = async ({
+  choices = [],
+  framework
+}: {
+  choices: string[];
+  framework: FrameworkType;
+}): Promise<ConfigRecord> => {
+  // 获取eslint的配置文件路径
+  function getEslintConfigFile(): FileRecord[] {
+    if (framework === "vue") {
+      return [
+        {
+          source: "eslint/vue.eslintrc.cjs",
+          dest: ".eslintrc.cjs"
+        }
+      ];
+    } else if (framework === "react") {
+      return [
+        {
+          source: "eslint/react.eslintrc.cjs",
+          dest: ".eslintrc.cjs"
+        }
+      ];
+    } else {
+      return ["eslint/.eslintrc.cjs"];
+    }
+  }
   return {
     git: {
       files: ["git/.husky", "git/commitlint.config.js"],
@@ -96,7 +123,7 @@ const getConfig = async (choices: string[] = []): Promise<ConfigRecord> => {
       packages: [{ name: "prettier", version: "^2.8.1" }]
     },
     eslint: {
-      files: ["eslint/.eslintignore", "eslint/.eslintrc.cjs"],
+      files: ["eslint/.eslintignore", ...getEslintConfigFile()],
       packages: [
         { name: "eslint", version: "^8.29.0", type: "devDependencies" },
         {
@@ -199,69 +226,81 @@ export default defineCommand({
       .command(COMMAND.PROJECT)
       .alias(COMMAND.PROJECT_ALIAS)
       .description("项目配置")
-      .action(async () => {
-        const ans = await inquirer.prompt([
-          {
-            name: "type",
-            type: "list",
-            message: `选择项目配置`,
-            choices: ["all", "custom"]
-          },
-          {
-            name: "customChoices",
-            type: "checkbox",
-            message: "自定义配置",
-            choices: allChoices,
-            when: ({ type }) => {
-              return type === "custom";
+      .option("-i, --init", "初始化项目")
+      .action(async (options) => {
+        if (options.init || Object.keys(options).length === 0) {
+          const ans = await inquirer.prompt([
+            {
+              name: "framework",
+              type: "list",
+              message: "请选择项目框架",
+              choices: ["node", "vue", "react"]
+            },
+            {
+              name: "type",
+              type: "list",
+              message: `选择项目配置`,
+              choices: ["all", "custom"]
+            },
+            {
+              name: "customChoices",
+              type: "checkbox",
+              message: "自定义配置",
+              choices: allChoices,
+              when: ({ type }) => {
+                return type === "custom";
+              }
             }
+          ]);
+          try {
+            let choices: ChoiceType[] = [];
+            const files: FileDescriptor[] = [];
+            const packages: PackageRecord[] = [];
+            const scripts: ScriptRecord[] = [];
+            let extraArgs: Record<string, any> = {};
+            // 安装所有
+            if (ans.type === "all") {
+              choices = allChoices;
+            } else {
+              // 自定义安装
+              choices = ans.customChoices;
+            }
+            // 获取配置
+            const config = await getConfig({
+              choices,
+              framework: ans.framework
+            });
+            for (const key of choices) {
+              const _files = config[key].files || [];
+              const _packages = config[key].packages || [];
+              const _scripts = config[key].scripts || [];
+              const _extraArgs = config[key].extraArgs || {};
+              // 转换file的格式
+              files.push(...formatFiles(_files));
+              packages.push(...filterFalse(_packages));
+              scripts.push(...filterFalse(_scripts));
+              extraArgs = { ...extraArgs, ...filterFalse(_extraArgs) };
+            }
+            // 拷贝文件
+            if (files.length > 0) {
+              await copyFiles(files);
+            }
+            // 写入配置
+            if (packages.length > 0) {
+              await writePackageInfo(packages);
+            }
+            // 写入命令
+            if (scripts.length > 0) {
+              await writeScripts(scripts);
+            }
+            // 写入额外属性
+            if (Object.keys(extraArgs).length > 0) {
+              await writeExtraArgs(extraArgs);
+            }
+            success(`已添加配置，请执行安装命令`);
+          } catch (err) {
+            error(err);
           }
-        ]);
-        try {
-          let choices: ChoiceType[] = [];
-          const files: FileDescriptor[] = [];
-          const packages: PackageRecord[] = [];
-          const scripts: ScriptRecord[] = [];
-          let extraArgs: Record<string, any> = {};
-          // 安装所有
-          if (ans.type === "all") {
-            choices = allChoices;
-          } else {
-            // 自定义安装
-            choices = ans.customChoices;
-          }
-          // 获取配置
-          const config = await getConfig(choices);
-          for (const key of choices) {
-            const _files = config[key].files || [];
-            const _packages = config[key].packages || [];
-            const _scripts = config[key].scripts || [];
-            const _extraArgs = config[key].extraArgs || {};
-            // 转换file的格式
-            files.push(...formatFiles(_files));
-            packages.push(...filterFalse(_packages));
-            scripts.push(...filterFalse(_scripts));
-            extraArgs = { ...extraArgs, ...filterFalse(_extraArgs) };
-          }
-          // 拷贝文件
-          if (files.length > 0) {
-            await copyFiles(files);
-          }
-          // 写入配置
-          if (packages.length > 0) {
-            await writePackageInfo(packages);
-          }
-          // 写入命令
-          if (scripts.length > 0) {
-            await writeScripts(scripts);
-          }
-          // 写入额外属性
-          if (Object.keys(extraArgs).length > 0) {
-            await writeExtraArgs(extraArgs);
-          }
-          success(`已添加配置，请执行安装命令`);
-        } catch (err) {
-          error(err);
         }
       });
   }
