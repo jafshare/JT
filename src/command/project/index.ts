@@ -8,41 +8,48 @@ import latestVersion from "latest-version";
 import defineCommand from "../defineCommand";
 import { error, success } from "@/lib/log";
 import COMMAND from "@/constant/command";
-import { runIt } from "@/utils/runIt";
-export interface WhenType {
-  // 是否会出现,仅当when === false则不会出现
-  when?: boolean | ((choices: string[]) => boolean);
-}
 export interface FileDescriptor {
   source: string;
   dest: string;
 }
-export type FileType = string | ((choices: string[]) => string);
-export type FileRecord = FileType | { source: FileType; dest: FileType };
-export type PackageRecord = {
+export type FileRecord = string | { source: string; dest: string };
+export interface PackageRecord {
   name: string;
   version: string;
   type?: "devDependencies" | "dependencies";
-} & WhenType;
-export type ScriptRecord = {
+}
+export interface ScriptRecord {
   name: string;
   script: string;
-} & WhenType;
+}
+export type ChoiceType =
+  | "git"
+  | "editor"
+  | "prettier"
+  | "eslint"
+  | "typescript";
 export type ConfigRecord = Record<
-  string,
+  ChoiceType,
   {
     files: string[];
-    packages: PackageRecord[];
-    scripts?: ScriptRecord[];
+    packages: (PackageRecord | false)[];
+    scripts?: (ScriptRecord | false)[];
     // 任意属性
-    extraArgs?: Record<string, { value: any } & WhenType>;
+    extraArgs?: Record<string, any>;
   }
 >;
+const allChoices: ChoiceType[] = [
+  "git",
+  "editor",
+  "prettier",
+  "eslint",
+  "typescript"
+];
 /**
  * 配置
  * files的路径基于 assets 目录
  */
-const getConfig = async (): Promise<ConfigRecord> => {
+const getConfig = async (choices: string[] = []): Promise<ConfigRecord> => {
   return {
     git: {
       files: ["git/.husky", "git/commitlint.config.js"],
@@ -69,17 +76,16 @@ const getConfig = async (): Promise<ConfigRecord> => {
         }
       ],
       scripts: [{ name: "prepare", script: "npx husky install" }],
-      extraArgs: {
-        "lint-staged": {
-          value: {
-            "*.{ts,tsx,js,jsx}":
-              "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
-            "*.{js,jsx,tsx,ts,less,md,json}":
-              "prettier --ignore-unknown --write"
-          },
-          when: (choices) => choices.includes("eslint")
-        }
-      }
+      extraArgs: choices.includes("eslint")
+        ? {
+            "lint-staged": {
+              "*.{ts,tsx,js,jsx}":
+                "eslint --cache --fix --ext .js,.ts,.jsx,.tsx .",
+              "*.{js,jsx,tsx,ts,less,md,json}":
+                "prettier --ignore-unknown --write"
+            }
+          }
+        : {}
     },
     editor: {
       files: ["editor/.editorconfig"],
@@ -98,15 +104,13 @@ const getConfig = async (): Promise<ConfigRecord> => {
           version: await latestVersion("@antfu/eslint-config"),
           type: "devDependencies"
         },
-        {
+        choices.includes("prettier") && {
           name: "eslint-config-prettier",
-          version: "^8.0.0",
-          when: (choices) => choices.includes("prettier")
+          version: "^8.0.0"
         },
-        {
+        choices.includes("prettier") && {
           name: "eslint-plugin-prettier",
-          version: "^4.2.1",
-          when: (choices) => choices.includes("prettier")
+          version: "^4.2.1"
         }
       ],
       scripts: [
@@ -129,40 +133,23 @@ const getConfig = async (): Promise<ConfigRecord> => {
   };
 };
 /**
- * 排除when ==== false的数据
+ * 排除false的数据
  * @param data
  * @param choices
  * @returns
  */
-function filterFalse(
-  data:
-    | ({ [propName: string]: any } & WhenType)[]
-    | Record<string, { [propName: string]: any } & WhenType>,
-  choices: string[]
-) {
+function filterFalse(data: any[] | any) {
   if (Array.isArray(data)) {
-    return data.filter((item) => runIt(item.when, choices) !== false);
-  } else {
-    const newData: any = {};
-    for (const key in data) {
-      const value = data[key];
-      if (runIt(value.when, choices) !== false) {
-        newData[key] = value;
-      }
-    }
-    return newData;
+    return data.filter((item) => item !== false);
   }
+  return data;
 }
-function formatFiles(files: FileRecord[], choices: string[]): FileDescriptor[] {
+function formatFiles(files: FileRecord[]): FileDescriptor[] {
   return files.map((file) => {
-    const _file = runIt(file, choices);
-    if (typeof _file === "string") {
-      return { source: _file, dest: basename(_file) };
-    } else if (typeof _file === "object") {
-      return { source: runIt(_file.source), dest: runIt(_file.dest) };
-    } else {
-      throw new TypeError(`错误的数据类型${typeof _file}`);
+    if (typeof file === "string") {
+      return { source: file, dest: basename(file) };
     }
+    return file;
   });
 }
 async function copyFiles(files: FileDescriptor[]) {
@@ -198,8 +185,9 @@ async function writeScripts(scripts: ScriptRecord[]) {
 }
 async function writeExtraArgs(extraArgs: Record<string, any>) {
   const pkg = await readPackage();
+  if (!extraArgs) return;
   for (const key in extraArgs) {
-    pkg[key] = extraArgs[key].value;
+    pkg[key] = extraArgs[key];
   }
   await writePackage(pkg);
 }
@@ -212,7 +200,6 @@ export default defineCommand({
       .alias(COMMAND.PROJECT_ALIAS)
       .description("项目配置")
       .action(async () => {
-        const config = await getConfig();
         const ans = await inquirer.prompt([
           {
             name: "type",
@@ -224,35 +211,37 @@ export default defineCommand({
             name: "customChoices",
             type: "checkbox",
             message: "自定义配置",
-            choices: Object.keys(config),
+            choices: allChoices,
             when: ({ type }) => {
               return type === "custom";
             }
           }
         ]);
         try {
-          let choices: string[] = [];
+          let choices: ChoiceType[] = [];
           const files: FileDescriptor[] = [];
           const packages: PackageRecord[] = [];
           const scripts: ScriptRecord[] = [];
           let extraArgs: Record<string, any> = {};
           // 安装所有
           if (ans.type === "all") {
-            choices = Object.keys(config);
+            choices = allChoices;
           } else {
             // 自定义安装
             choices = ans.customChoices;
           }
+          // 获取配置
+          const config = await getConfig(choices);
           for (const key of choices) {
             const _files = config[key].files || [];
             const _packages = config[key].packages || [];
             const _scripts = config[key].scripts || [];
             const _extraArgs = config[key].extraArgs || {};
             // 转换file的格式
-            files.push(...formatFiles(_files, choices));
-            packages.push(...filterFalse(_packages, choices));
-            scripts.push(...filterFalse(_scripts, choices));
-            extraArgs = { ...extraArgs, ...filterFalse(_extraArgs, choices) };
+            files.push(...formatFiles(_files));
+            packages.push(...filterFalse(_packages));
+            scripts.push(...filterFalse(_scripts));
+            extraArgs = { ...extraArgs, ...filterFalse(_extraArgs) };
           }
           // 拷贝文件
           if (files.length > 0) {
