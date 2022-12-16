@@ -3,10 +3,10 @@ import { exec } from "child_process";
 import { NodeSSH } from "node-ssh";
 import archiver from "archiver";
 import { existsSync, unlinkSync } from "fs-extra";
-import { arrow, danger, success, underlineAndBold } from "@/lib/log";
 import ora from "ora";
+import { arrow, danger, success, underlineAndBold } from "@/lib/log";
 const ssh = new NodeSSH();
-export type DeployConfig = {
+export interface DeployConfig {
   password?: string;
   // 密钥地址
   privateKeyPath?: string;
@@ -28,7 +28,7 @@ export type DeployConfig = {
   bundleFilename: string;
   // 打包路径
   bundleFilePath: string;
-};
+}
 /**
  * 开始打包成zip
  * @param sourcePath 文件路径
@@ -39,14 +39,14 @@ export const bundle = async (config: DeployConfig) => {
       return reject(new Error(`${config.sourcePath}文件不存在`));
     }
     const bundler = archiver("zip", {
-      zlib: { level: 9 },
+      zlib: { level: 9 }
     });
     const output = fs.createWriteStream(config.bundleFilePath);
     output.on("close", (err: any) => {
       if (err) {
         return reject(new Error(`${config.bundleFilePath}关闭错误 ${err}`));
       }
-      return resolve(void 0);
+      return resolve(undefined);
     });
     bundler.pipe(output);
     bundler.directory(config.sourcePath, "/");
@@ -65,12 +65,12 @@ export async function connectServer(config: DeployConfig) {
     password,
     host,
     port,
-    privateKeyPath,
+    privateKeyPath
   };
   return new Promise(async (resolve, reject) => {
     try {
       await ssh.connect(sshConfig);
-      resolve(void 0);
+      resolve(undefined);
     } catch (err) {
       reject(new Error(`连接服务器失败 ${err}`));
     }
@@ -84,11 +84,8 @@ export async function upload(config: DeployConfig) {
   return new Promise(async (resolve, reject) => {
     try {
       // TODO 可能没有权限
-      await ssh.putFile(
-        config.bundleFilePath,
-        config.remotePath
-      );
-      resolve(void 0);
+      await ssh.putFile(config.bundleFilePath, config.remotePath);
+      resolve(undefined);
     } catch (err) {
       reject(new Error(`上传文件失败 ${err}`));
     }
@@ -108,10 +105,10 @@ export async function unzip(config: DeployConfig) {
         cwd: config.cwd,
         onStderr(chunk) {
           reject(new Error(`解压错误 ${chunk.toString("utf-8")}`));
-        },
+        }
       }
     );
-    resolve(void 0);
+    resolve(undefined);
   });
 }
 /**
@@ -125,7 +122,11 @@ export async function deleteLocal(config: DeployConfig) {
     throw new Error(`删除本地文件失败 err`);
   }
 }
-export async function stepLoading(task: () => Promise<any>, message: string, errorMessage?: string) {
+export async function stepLoading(
+  task: () => Promise<any>,
+  message: string,
+  errorMessage?: string
+) {
   const loading = ora(message);
   loading.start();
   try {
@@ -139,15 +140,15 @@ export async function stepLoading(task: () => Promise<any>, message: string, err
 }
 export async function deploy(config: DeployConfig) {
   // 保存远程操作的目录
-  config.cwd = config.remotePath
-  const bundleFilename = config.distDirName + '.zip'
-  const bundleFilePath = config.sourcePath + '.zip'
+  config.cwd = config.remotePath;
+  const bundleFilename = `${config.distDirName}.zip`;
+  const bundleFilePath = `${config.sourcePath}.zip`;
   // 拼接路径信息
-  const remotePath = config.remotePath + `/${config.distDirName}.zip`
+  const remotePath = `${config.remotePath}/${config.distDirName}.zip`;
   // 更新config信息
-  config.bundleFilePath = bundleFilePath
-  config.remotePath = remotePath
-  config.bundleFilename = bundleFilename
+  config.bundleFilePath = bundleFilePath;
+  config.remotePath = remotePath;
+  config.bundleFilename = bundleFilename;
   try {
     // 第一步打包
     await stepLoading(async () => bundle(config), "开始压缩...");
@@ -155,7 +156,7 @@ export async function deploy(config: DeployConfig) {
     arrow();
     // 第二步连接服务器
     await stepLoading(async () => connectServer(config), "开始连接...");
-    success(`连接完成 ${underlineAndBold(config.host + ":" + config.port)}`);
+    success(`连接完成 ${underlineAndBold(`${config.host}:${config.port}`)}`);
     arrow();
     // 第三步上传文件
     await stepLoading(async () => upload(config), "开始上传...");
@@ -173,17 +174,24 @@ export async function deploy(config: DeployConfig) {
     ssh.isConnected() && ssh.dispose();
   }
 }
-export async function execScript(cmd: string, opts?: { cwd?: string | undefined, tip?: string }) {
-  await stepLoading(async () => {
-    return new Promise((resolve, reject) => {
-      exec(cmd, { cwd: opts?.cwd }, (err, stdout, stderr) => {
-        if (err) {
-          return reject(err)
-        }
-        return resolve(void 0)
-      })
-    })
-  }, opts?.tip || '正在执行...', `执行${underlineAndBold(cmd)}失败`);
+export async function execScript(
+  cmd: string,
+  opts?: { cwd?: string | undefined; tip?: string }
+) {
+  await stepLoading(
+    async () => {
+      return new Promise((resolve, reject) => {
+        exec(cmd, { cwd: opts?.cwd }, (err) => {
+          if (err) {
+            return reject(err);
+          }
+          return resolve(undefined);
+        });
+      });
+    },
+    opts?.tip || "正在执行...",
+    `执行${underlineAndBold(cmd)}失败`
+  );
   success(`执行完成 ${underlineAndBold(cmd)}`);
   arrow();
 }

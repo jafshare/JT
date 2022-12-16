@@ -1,22 +1,25 @@
 {
   "name": "jtcommand",
   "version": "1.0.9",
-  "description": "",
-  "author": "HunterJiang",
+  "author": {
+    "name": "HunterJiang"
+  },
   "main": "bin/index.js",
   "bin": {
     "jt": "./bin/index.js"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/jafshare/JT"
+    "url": "git+https://github.com/jafshare/JT.git"
   },
   "scripts": {
     "test": "ts-node src/index.ts",
     "dev": "rollup -c -w",
     "build": "rollup -c",
     "link": "yarn link",
-    "unlink": "yarn unlink"
+    "unlink": "yarn unlink",
+    "prepare": "npx husky install",
+    "lint": "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ./src"
   },
   "dependencies": {
     "@types/archiver": "^5.3.1",
@@ -26,13 +29,20 @@
     "execa": "^6.0.0",
     "extract-zip": "^2.0.1",
     "figlet": "^1.5.2",
-    "fs-extra": "^10.0.0",
+    "fs-extra": "^11.1.0",
     "gitly": "^2.2.1",
     "inquirer": "^8.2.0",
+    "latest-version": "^7.0.0",
+    "lodash": "^4.17.21",
     "node-ssh": "11.1.1",
-    "ora": "5.4.1"
+    "ora": "5.4.1",
+    "read-pkg": "^7.1.0",
+    "write-pkg": "^5.1.0"
   },
   "devDependencies": {
+    "@antfu/eslint-config": "^0.34.0",
+    "@commitlint/cli": "^17.3.0",
+    "@commitlint/config-conventional": "^17.3.0",
     "@rollup/plugin-json": "^4.1.0",
     "@rollup/plugin-node-resolve": "^13.0.6",
     "@types/chalk": "^2.2.0",
@@ -43,9 +53,26 @@
     "@types/inquirer": "^8.1.3",
     "@types/node": "^16.11.9",
     "@types/rollup": "^0.54.0",
+    "eslint": "^8.29.0",
+    "eslint-config-prettier": "^8.0.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "husky": "^8.0.1",
+    "lint-staged": "^13.0.3",
+    "prettier": "^2.8.1",
     "rollup": "^2.60.0",
+    "rollup-plugin-copy": "^3.4.0",
     "rollup-plugin-typescript2": "^0.31.0",
     "ts-node": "^10.4.0",
-    "typescript": "^4.5.2"
+    "typescript": "^4.9.4"
+  },
+  "bugs": {
+    "url": "https://github.com/jafshare/JT/issues"
+  },
+  "readme": "ERROR: No README data found!",
+  "homepage": "https://github.com/jafshare/JT#readme",
+  "_id": "jtcommand@1.0.9",
+  "lint-staged": {
+    "src/**/*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx ./src",
+    "src/**/*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write"
   }
 }

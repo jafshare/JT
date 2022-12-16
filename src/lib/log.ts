@@ -41,16 +41,16 @@ const underlineAndBold = (...args: any[]) => {
 /**
  * 返回红色文字
  * @param args 任意字符
- * @returns 
+ * @returns
  */
 const danger = (...args: any[]) => {
-  return chalk.redBright(...args)
-}
+  return chalk.redBright(...args);
+};
 /**
  * 换行
  * @param lineNumber 换行数，默认一行
  */
-const newline = (lineNumber: number = 1) => {
+const newline = (lineNumber = 1) => {
   for (let index = 0; index < lineNumber; index++) {
     success();
   }

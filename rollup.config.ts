@@ -2,6 +2,7 @@ import { defineConfig } from "rollup";
 import nodeResolve from "@rollup/plugin-node-resolve";
 import typescript from "rollup-plugin-typescript2";
 import json from "@rollup/plugin-json";
+import copy from "rollup-plugin-copy";
 
 export default defineConfig({
   input: "src/index.ts",
@@ -9,22 +10,30 @@ export default defineConfig({
     dir: "bin",
     format: "commonjs",
     // 添加执行环境
-    banner: "#! /usr/bin/env node",
+    banner: "#! /usr/bin/env node"
   },
   plugins: [
     nodeResolve({
       // 仅作为模块导入
       modulesOnly: true,
-      preferBuiltins: false,
+      preferBuiltins: false
     }),
     typescript({
       tsconfigOverride: {
         compilerOptions: {
           // 转为ES2015
-          module: "ES2015",
-        },
-      },
+          module: "ES2015"
+        }
+      }
     }),
     json(),
-  ],
+    copy({
+      targets: [
+        {
+          src: "src/assets",
+          dest: "bin"
+        }
+      ]
+    })
+  ]
 });

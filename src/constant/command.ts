@@ -3,8 +3,8 @@ const COMMAND = {
   INIT: "init",
   INIT_ALIAS: "i",
   // 创建
-  CREATE: 'create',
-  CREATE_ALIAS: 'c',
+  CREATE: "create",
+  CREATE_ALIAS: "c",
   // 换源
   CHANGE_REGISTRY: "change-registry",
   CHANGE_REGISTRY_ALIAS: "cr",
@@ -12,10 +12,13 @@ const COMMAND = {
   TEMPLATE: "template",
   TEMPLATE_ALIAS: "tp",
   // 部署
-  DEPLOY: 'deploy',
-  DEPLOY_ALIAS: 'dp',
+  DEPLOY: "deploy",
+  DEPLOY_ALIAS: "dp",
   // 配置
   CONFIG: "config",
-  CONFIG_ALIAS: 'cfg'
-}
-export default COMMAND
+  CONFIG_ALIAS: "cfg",
+  // 项目
+  PROJECT: "project",
+  PROJECT_ALIAS: "pt"
+};
+export default COMMAND;

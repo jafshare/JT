@@ -1,14 +1,14 @@
-import fs from 'fs'
-import { join, extname, normalize } from 'path';
-import { existsSync } from 'fs-extra';
+import fs from "fs";
+import { extname, join, normalize } from "path";
+import { existsSync } from "fs-extra";
 import archiver from "archiver";
-import ora from 'ora';
-import extract from 'extract-zip';
-import COMMAND from "@/constant/command"
-import { danger, newline, success, underlineAndBold } from "@/lib/log"
+import ora from "ora";
+import extract from "extract-zip";
 import defineCommand from "../defineCommand";
+import COMMAND from "@/constant/command";
+import { danger, newline, success, underlineAndBold } from "@/lib/log";
 import { CONFIG_DIR } from "@/constant/path";
-const bundleFilename = 'jt_config.zip'
+const bundleFilename = "jt_config.zip";
 /**
  * 获取完整的路径，如果指定到文件，则使用指定的文件名，指定到目录，则使用base作为文件名
  * @param path 路径
@@ -19,18 +19,18 @@ export const getFullPath = (path: string, filename: string) => {
   let fullPath = path;
   // 如果是目录，则需要加上filename
   if (!extname(path)) {
-    fullPath = join(path, filename)
+    fullPath = join(path, filename);
   }
-  return normalize(fullPath)
-}
+  return normalize(fullPath);
+};
 export const bundle = async (sourcePath: string, destPath: string) => {
-  const outputPath = destPath
+  const outputPath = destPath;
   return new Promise((resolve, reject) => {
     if (!existsSync(sourcePath)) {
       return reject(new Error(`${sourcePath}文件不存在`));
     }
     const bundler = archiver("zip", {
-      zlib: { level: 9 },
+      zlib: { level: 9 }
     });
     const output = fs.createWriteStream(outputPath);
     output.on("close", (err: any) => {
@@ -44,19 +44,19 @@ export const bundle = async (sourcePath: string, destPath: string) => {
     bundler.finalize();
   });
 };
-export const unzip = (sourcePath: string, destDirPath: string) => {
+export const unzip = async (sourcePath: string, destDirPath: string) => {
   return new Promise(async (resolve, reject) => {
     if (!existsSync(sourcePath)) {
       return reject(new Error(`${sourcePath}文件不存在`));
     }
     try {
-      await extract(sourcePath, { dir: destDirPath })
-      resolve(void 0)
+      await extract(sourcePath, { dir: destDirPath });
+      resolve(undefined);
     } catch (err) {
-      reject(err)
+      reject(err);
     }
-  })
-}
+  });
+};
 /**
  * 提供配置导入导出
  */
@@ -64,42 +64,46 @@ export default defineCommand({
   name: COMMAND.CONFIG,
   use: (ctx) => {
     // 更改淘宝源
-    ctx.program.command(COMMAND.CONFIG).alias(COMMAND.CONFIG_ALIAS)
-      .description('配置导入导出')
-      .option('-i, --import [导入路径]', `导入模板(默认:${bundleFilename})`)
-      .option('-e, --export [导出路径]', `导出模板(默认:${bundleFilename})`)
+    ctx.program
+      .command(COMMAND.CONFIG)
+      .alias(COMMAND.CONFIG_ALIAS)
+      .description("配置导入导出")
+      .option("-i, --import [导入路径]", `导入模板(默认:${bundleFilename})`)
+      .option("-e, --export [导出路径]", `导出模板(默认:${bundleFilename})`)
       .action(async (options) => {
         // 导入
         if (options.import) {
-          let importPath = options.import
-          if (typeof importPath === 'boolean') {
+          let importPath = options.import;
+          if (typeof importPath === "boolean") {
             importPath = process.cwd();
           }
-          const loading = ora('正在导入...');
+          const loading = ora("正在导入...");
           try {
-            await unzip(getFullPath(importPath, bundleFilename), CONFIG_DIR)
-            loading.succeed('导入完成')
+            await unzip(getFullPath(importPath, bundleFilename), CONFIG_DIR);
+            loading.succeed("导入完成");
           } catch (err) {
-            loading.fail(danger(`导入失败 ${err}`))
+            loading.fail(danger(`导入失败 ${err}`));
           }
         } else if (options.export) {
-          //导出
-          let outputPath = options.export
+          // 导出
+          let outputPath = options.export;
           // 如果未指定
-          if (typeof outputPath === 'boolean') {
+          if (typeof outputPath === "boolean") {
             outputPath = process.cwd();
           }
-          const loading = ora('正在导出...');
+          const loading = ora("正在导出...");
           try {
-            const output = await bundle(CONFIG_DIR, getFullPath(outputPath, bundleFilename));
-            loading.succeed('导出完成')
-            newline()
-            success(`配置已导出 ${underlineAndBold(output)}`)
+            const output = await bundle(
+              CONFIG_DIR,
+              getFullPath(outputPath, bundleFilename)
+            );
+            loading.succeed("导出完成");
+            newline();
+            success(`配置已导出 ${underlineAndBold(output)}`);
           } catch (err) {
-            loading.fail(danger(`导出失败 ${err}`))
+            loading.fail(danger(`导出失败 ${err}`));
           }
         }
-      })
+      });
   }
-})
-
+});
