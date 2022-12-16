@@ -315,6 +315,7 @@ export default defineCommand({
       .alias(COMMAND.PROJECT_ALIAS)
       .description("项目配置")
       .option("-i, --init", "初始化项目")
+      .option("-a, --add", "添加功能")
       .action(async (options) => {
         if (options.init || Object.keys(options).length === 0) {
           const ans = await inquirer.prompt([
@@ -322,13 +323,20 @@ export default defineCommand({
               name: "framework",
               type: "list",
               message: "请选择项目框架",
-              choices: ["node", "vue", "react"]
+              choices: [
+                { name: "node项目", value: "node" },
+                { name: "vue项目", value: "vue" },
+                { name: "react项目", value: "react" }
+              ]
             },
             {
               name: "type",
               type: "list",
               message: `选择项目配置`,
-              choices: ["all", "custom"]
+              choices: [
+                { name: "全部", value: "all" },
+                { name: "自定义", value: "custom" }
+              ]
             },
             {
               name: "customChoices",
@@ -398,6 +406,32 @@ export default defineCommand({
           } catch (err) {
             error(err);
           }
+        } else if (options.add) {
+          const ans = await inquirer.prompt([
+            {
+              name: "choices",
+              message: "请选择需要添加的功能",
+              type: "checkbox",
+              choices: [
+                { name: "工具函数", value: { source: "utils", dest: "utils" } },
+                {
+                  name: "工具Typings",
+                  value: { source: "typings", dest: "typings" }
+                }
+              ]
+            }
+          ]);
+          const choices = ans.choices;
+          await copyFiles(choices, async (filename: string) => {
+            const ans = await inquirer.prompt([
+              {
+                name: "override",
+                type: "confirm",
+                message: `${filename}已存在，是否覆盖`
+              }
+            ]);
+            return ans.override;
+          });
         }
       });
   }
