@@ -1,6 +1,7 @@
 import { basename, join } from "path";
+import { existsSync } from "fs";
 import inquirer from "inquirer";
-
+import { isArray, mergeWith } from "lodash";
 import { copy } from "fs-extra";
 import { readPackage } from "read-pkg";
 import { writePackage } from "write-pkg";
@@ -29,16 +30,14 @@ export type ChoiceType =
   | "prettier"
   | "eslint"
   | "typescript";
-export type ConfigRecord = Record<
-  ChoiceType,
-  {
-    files: FileRecord[];
-    packages: (PackageRecord | false)[];
-    scripts?: (ScriptRecord | false)[];
-    // 任意属性
-    extraArgs?: Record<string, any>;
-  }
->;
+export interface ConfigValue {
+  files: FileRecord[];
+  packages: (PackageRecord | false)[];
+  scripts?: (ScriptRecord | false)[];
+  // 任意属性
+  extraArgs?: Record<string, any>;
+}
+export type ConfigRecord = Record<ChoiceType, ConfigValue>;
 const allChoices: ChoiceType[] = [
   "git",
   "editor",
@@ -57,27 +56,7 @@ const getConfig = async ({
   choices: string[];
   framework: FrameworkType;
 }): Promise<ConfigRecord> => {
-  // 获取eslint的配置文件路径
-  function getEslintConfigFile(): FileRecord[] {
-    if (framework === "vue") {
-      return [
-        {
-          source: "eslint/vue.eslintrc.cjs",
-          dest: ".eslintrc.cjs"
-        }
-      ];
-    } else if (framework === "react") {
-      return [
-        {
-          source: "eslint/react.eslintrc.cjs",
-          dest: ".eslintrc.cjs"
-        }
-      ];
-    } else {
-      return ["eslint/.eslintrc.cjs"];
-    }
-  }
-  return {
+  const baseConfig: ConfigRecord = {
     git: {
       files: ["git/.husky", "git/commitlint.config.js"],
       packages: [
@@ -123,29 +102,11 @@ const getConfig = async ({
       packages: [{ name: "prettier", version: "^2.8.1" }]
     },
     eslint: {
-      files: ["eslint/.eslintignore", ...getEslintConfigFile()],
+      files: ["eslint/.eslintignore"],
       packages: [
-        { name: "eslint", version: "^8.29.0", type: "devDependencies" },
-        {
-          name: "@antfu/eslint-config",
-          version: await latestVersion("@antfu/eslint-config"),
-          type: "devDependencies"
-        },
-        choices.includes("prettier") && {
-          name: "eslint-config-prettier",
-          version: "^8.0.0"
-        },
-        choices.includes("prettier") && {
-          name: "eslint-plugin-prettier",
-          version: "^4.2.1"
-        }
+        { name: "eslint", version: "^8.29.0", type: "devDependencies" }
       ],
-      scripts: [
-        {
-          name: "lint",
-          script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ."
-        }
-      ]
+      scripts: []
     },
     typescript: {
       files: ["typescript/tsconfig.json"],
@@ -158,6 +119,124 @@ const getConfig = async ({
       ]
     }
   };
+  let mergeConfig: Partial<Record<keyof ConfigRecord, Partial<ConfigValue>>> =
+    {};
+  if (framework === "vue") {
+    mergeConfig = {
+      git: {
+        extraArgs: choices.includes("eslint")
+          ? {
+              "lint-staged": {
+                "*.{vue,ts,tsx,js,jsx}":
+                  "eslint --cache --fix --ext .vue,.js,.ts,.jsx,.tsx .",
+                "*.{vue,js,jsx,tsx,ts,less,md,json}":
+                  "prettier --ignore-unknown --write"
+              }
+            }
+          : {}
+      },
+      eslint: {
+        files: [
+          {
+            source: "eslint/vue.eslintrc.cjs",
+            dest: ".eslintrc.cjs"
+          }
+        ],
+        packages: [
+          {
+            name: "@antfu/eslint-config-vue",
+            version: await latestVersion("@antfu/eslint-config-vue"),
+            type: "devDependencies"
+          },
+          {
+            name: "@vue/eslint-config-typescript",
+            version: "^11.0.2"
+          },
+          {
+            name: "@vue/eslint-config-prettier",
+            version: "^7.0.0"
+          }
+        ],
+        scripts: [
+          {
+            name: "lint",
+            script: "eslint --cache --fix  --ext .vue,.js,.ts,.jsx,.tsx ."
+          }
+        ]
+      }
+    };
+  } else if (framework === "react") {
+    mergeConfig = {
+      eslint: {
+        files: [
+          {
+            source: "eslint/react.eslintrc.cjs",
+            dest: ".eslintrc.cjs"
+          }
+        ],
+        packages: [
+          {
+            name: "@antfu/eslint-config-react",
+            version: await latestVersion("@antfu/eslint-config-react"),
+            type: "devDependencies"
+          },
+          {
+            name: "eslint-config-prettier",
+            version: "^8.0.0"
+          },
+          {
+            name: "eslint-plugin-prettier",
+            version: "^4.2.1"
+          }
+        ],
+        scripts: [
+          {
+            name: "lint",
+            script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ."
+          }
+        ]
+      }
+    };
+  } else {
+    mergeConfig = {
+      eslint: {
+        files: ["eslint/.eslintrc.cjs"],
+        packages: [
+          {
+            name: "@antfu/eslint-config-ts",
+            version: await latestVersion("@antfu/eslint-config-ts"),
+            type: "devDependencies"
+          },
+          {
+            name: "eslint-config-prettier",
+            version: "^8.0.0"
+          },
+          {
+            name: "eslint-plugin-prettier",
+            version: "^4.2.1"
+          }
+        ],
+        scripts: [
+          {
+            name: "lint",
+            script: "eslint --cache --fix  --ext .js,.ts,.jsx,.tsx ."
+          }
+        ]
+      }
+    };
+  }
+  // 合并两个配置
+  mergeWith(baseConfig, mergeConfig, (objValue, srcValue, key) => {
+    // lint-stage采用覆盖的方式
+    if (["lint-staged"].includes(key)) {
+      return srcValue;
+    }
+    // 其他字段采用拼接
+    if (isArray(objValue)) {
+      return objValue.concat(srcValue);
+    }
+  });
+  return baseConfig;
 };
 /**
  * 排除false的数据
@@ -179,10 +258,19 @@ function formatFiles(files: FileRecord[]): FileDescriptor[] {
     return file;
   });
 }
-async function copyFiles(files: FileDescriptor[]) {
+async function copyFiles(
+  files: FileDescriptor[],
+  onOverride: (filename: string) => Promise<boolean>
+) {
   for await (const copyDesc of files) {
     const source = join(__dirname, "./assets/project", copyDesc.source);
     const dest = join(process.cwd(), copyDesc.dest);
+    if (existsSync(dest)) {
+      const res = await onOverride(copyDesc.dest);
+      if (!res) {
+        continue;
+      }
+    }
     await copy(source, dest, { recursive: true });
   }
 }
@@ -283,7 +371,16 @@ export default defineCommand({
             }
             // 拷贝文件
             if (files.length > 0) {
-              await copyFiles(files);
+              await copyFiles(files, async (filename: string) => {
+                const ans = await inquirer.prompt([
+                  {
+                    name: "override",
+                    type: "confirm",
+                    message: `${filename}已存在，是否覆盖`
+                  }
+                ]);
+                return ans.override;
+              });
             }
             // 写入配置
             if (packages.length > 0) {

@@ -5,7 +5,7 @@ module.exports = {
     node: true,
     es6: true
   },
-  extends: ["@antfu", "prettier", "plugin:prettier/recommended"],
+  extends: ["@antfu/eslint-config-ts", "prettier", "plugin:prettier/recommended"],
   rules: {
     "@typescript-eslint/no-explicit-any": ["off"], // ts 定义数据类型为any不报错
     "@typescript-eslint/ban-types": [

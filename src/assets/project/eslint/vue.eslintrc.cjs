@@ -6,7 +6,7 @@ module.exports = {
     es6: true
   },
   extends: [
-    "@antfu",
+    "@antfu/eslint-config-vue",
     "@vue/eslint-config-typescript",
     "@vue/eslint-config-prettier"
   ],
