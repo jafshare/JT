@@ -1,4 +1,5 @@
-import { existsSync, readJSONSync, writeJSONSync } from "fs-extra";
+import path from "path";
+import { existsSync, mkdirSync, readJSONSync, writeJSONSync } from "fs-extra";
 /**
  * 存储基本类，封装基本的存储的功能
  */
@@ -85,6 +86,11 @@ export class BaseRegistry<T extends Record<string, any>> {
     // 判断文件是否存在
     if (!existsSync(this.storePath)) {
       this.data = [];
+      // 如果路径不存在，则需要初始化目录
+      const dirPath = path.dirname(this.storePath);
+      if (dirPath) {
+        mkdirSync(dirPath, { recursive: true });
+      }
       return;
     }
     this.data = readJSONSync(this.storePath) || [];
