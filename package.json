@@ -8,6 +8,11 @@
   "bin": {
     "jt": "./bin/index.js"
   },
+  "files":[
+    "bin",
+    "src",
+    "config"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jafshare/JT.git"
