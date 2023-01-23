@@ -1,6 +1,6 @@
 {
   "name": "jtcommand",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "author": {
     "name": "HunterJiang"
   },
@@ -8,6 +8,11 @@
   "bin": {
     "jt": "./bin/index.js"
   },
+  "files":[
+    "bin",
+    "src",
+    "config"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/jafshare/JT.git"
