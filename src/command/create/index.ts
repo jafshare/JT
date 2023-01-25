@@ -77,7 +77,8 @@ async function createByTemplate() {
     }
     // 创建目录
     !pathExists && (await mkdir(answers.projectName));
-
+    // 初始化TEMP目录
+    !existsSync(TEMP_PATH) && mkdirSync(TEMP_PATH);
     // 如果是远程代码则拉取仓库
     !template.local &&
       (await gitDownload(
