@@ -1,10 +1,16 @@
 {
   "name": "jtcommand",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "author": {
     "name": "HunterJiang"
   },
   "main": "bin/index.js",
+  "keywords": [
+    "utils",
+    "command",
+    "jt",
+    "jtcommand"
+  ],
   "bin": {
     "jt": "./bin/index.js"
   },
@@ -76,7 +82,7 @@
   },
   "readme": "ERROR: No README data found!",
   "homepage": "https://github.com/jafshare/JT#readme",
-  "_id": "jtcommand@1.0.12",
+  "_id": "jtcommand@1.0.13",
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx ./src",
     "src/**/*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write"
