@@ -41,6 +41,7 @@ jt tp -a
 jt dp -a
 ```
 ![deploy_init_preview](./docAssets/deploy_init_preview.png)
+
 注意：目前暂未实现密钥模式；
 
 本地目录名：指build出来的文件夹，一般是 `dist`;
@@ -54,6 +55,7 @@ jt dp -a
 jt dp
 ```
 ![deploy_preview](./docAssets/deploy_preview.png)
+
 确认需要部署的配置，输入密码后，则开始进行自动部署
 
 问题解答1：本命令不会保存密码在本地文件中，而是由用户手工输入，保证密码的安全性
