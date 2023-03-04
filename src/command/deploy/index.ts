@@ -10,7 +10,7 @@ import { deploy, execScript } from "./deploy";
 import { DEPLOY_PATH } from "@/constant/path";
 
 import COMMAND from "@/constant/command";
-import { error, newline, success, underlineAndBold, warn } from "@/lib/log";
+import { error, newline, success, underlineAndBoldText, warn } from "@/lib/log";
 import { validEmpty, withDefault } from "@/lib/inquirerUtils";
 export interface DeployRecord {
   name: string;
@@ -187,7 +187,7 @@ export default defineCommand({
             }
           }
           deployRegistry.add(ans);
-          success(`新增配置${underlineAndBold(ans.name)}`);
+          success(`新增配置${underlineAndBoldText(ans.name)}`);
         } else if (options.update) {
           let id = options.update;
           // 如果未提供配置名称，则提供选择
@@ -197,7 +197,7 @@ export default defineCommand({
             id = ans.name;
           }
           if (!deployRegistry.exists(id)) {
-            error(`配置${underlineAndBold(id)}不存在`);
+            error(`配置${underlineAndBoldText(id)}不存在`);
             return;
           }
           const record = deployRegistry.get(id)!;
@@ -216,7 +216,7 @@ export default defineCommand({
           };
           const ans = await inquirer.prompt(withDefault(questions, record));
           deployRegistry.updated(id, ans);
-          success(`更新配置${underlineAndBold(id)}`);
+          success(`更新配置${underlineAndBoldText(id)}`);
         } else if (options.rm) {
           let id = options.rm;
           // 如果未提供配置名称，则提供选择
@@ -226,11 +226,11 @@ export default defineCommand({
             id = ans.name;
           }
           if (!deployRegistry.exists(id)) {
-            error(`配置${underlineAndBold(id)}不存在`);
+            error(`配置${underlineAndBoldText(id)}不存在`);
             return;
           }
           deployRegistry.remove(id);
-          success(`已删除配置${underlineAndBold(id)}`);
+          success(`已删除配置${underlineAndBoldText(id)}`);
         } else if (options.clear) {
           // 确认清空
           const ans = await inquirer.prompt([
@@ -248,7 +248,7 @@ export default defineCommand({
             id = ans.name;
           }
           if (!deployRegistry.exists(id)) {
-            error(`配置${underlineAndBold(id)}不存在`);
+            error(`配置${underlineAndBoldText(id)}不存在`);
             return;
           }
           displayDeployInfo(deployRegistry.get(id)!);
@@ -313,7 +313,7 @@ export default defineCommand({
             if (deployConfig.beforeScript) {
               await execScript(deployConfig.beforeScript, {
                 cwd: process.cwd(),
-                tip: `正在执行${underlineAndBold(
+                tip: `正在执行${underlineAndBoldText(
                   deployConfig.beforeScript
                 )} ...`
               });
@@ -323,13 +323,15 @@ export default defineCommand({
               // 运行部署后脚本
               await execScript(deployConfig.afterScript, {
                 cwd: process.cwd(),
-                tip: `正在执行${underlineAndBold(deployConfig.afterScript)} ...`
+                tip: `正在执行${underlineAndBoldText(
+                  deployConfig.afterScript
+                )} ...`
               });
             }
             const end = Date.now();
             newline(2);
             success(
-              `部署成功,总耗时${underlineAndBold(
+              `部署成功,总耗时${underlineAndBoldText(
                 ((end - start) / 1000).toFixed(1)
               )}s`
             );
@@ -353,7 +355,7 @@ export default defineCommand({
             id = ans.name;
           }
           if (!deployRegistry.exists(id)) {
-            error(`配置${underlineAndBold(id)}不存在`);
+            error(`配置${underlineAndBoldText(id)}不存在`);
             return;
           }
           const record = deployRegistry.get(id)!;
@@ -368,7 +370,7 @@ export default defineCommand({
             }
           }
           deployRegistry.add(ans);
-          success(`新增配置${underlineAndBold(ans.name)}`);
+          success(`新增配置${underlineAndBoldText(ans.name)}`);
         }
       });
   }

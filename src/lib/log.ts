@@ -19,7 +19,7 @@ const error = (...args: any[]) => {
  * @param args 任意字符
  * @returns
  */
-const underline = (...args: any[]) => {
+const underlineText = (...args: any[]) => {
   return chalk.underline(...args);
 };
 /**
@@ -27,7 +27,7 @@ const underline = (...args: any[]) => {
  * @param args 任意字符
  * @returns
  */
-const bold = (...args: any[]) => {
+const boldText = (...args: any[]) => {
   return chalk.bold(...args);
 };
 /**
@@ -35,7 +35,7 @@ const bold = (...args: any[]) => {
  * @param args 任意字符
  * @returns
  */
-const underlineAndBold = (...args: any[]) => {
+const underlineAndBoldText = (...args: any[]) => {
   return chalk.underline.bold(...args);
 };
 /**
@@ -43,7 +43,7 @@ const underlineAndBold = (...args: any[]) => {
  * @param args 任意字符
  * @returns
  */
-const danger = (...args: any[]) => {
+const dangerText = (...args: any[]) => {
   return chalk.redBright(...args);
 };
 /**
@@ -67,10 +67,10 @@ export {
   warn,
   error,
   success,
-  underline,
-  bold,
-  underlineAndBold,
+  underlineText,
+  boldText,
+  underlineAndBoldText,
   newline,
   arrow,
-  danger
+  dangerText
 };

@@ -4,7 +4,7 @@ import { NodeSSH } from "node-ssh";
 import archiver from "archiver";
 import { existsSync, unlinkSync } from "fs-extra";
 import ora from "ora";
-import { arrow, danger, success, underlineAndBold } from "@/lib/log";
+import { arrow, dangerText, success, underlineAndBoldText } from "@/lib/log";
 const ssh = new NodeSSH();
 export interface DeployConfig {
   password?: string;
@@ -132,7 +132,7 @@ export async function stepLoading(
   try {
     await task();
   } catch (e: any) {
-    loading.fail(danger((errorMessage ?? e?.message) || "未知异常"));
+    loading.fail(dangerText((errorMessage ?? e?.message) || "未知异常"));
     throw e;
   } finally {
     loading.stop();
@@ -152,24 +152,26 @@ export async function deploy(config: DeployConfig) {
   try {
     // 第一步打包
     await stepLoading(async () => bundle(config), "开始压缩...");
-    success(`压缩完成 ${underlineAndBold(bundleFilePath)}`);
+    success(`压缩完成 ${underlineAndBoldText(bundleFilePath)}`);
     arrow();
     // 第二步连接服务器
     await stepLoading(async () => connectServer(config), "开始连接...");
-    success(`连接完成 ${underlineAndBold(`${config.host}:${config.port}`)}`);
+    success(
+      `连接完成 ${underlineAndBoldText(`${config.host}:${config.port}`)}`
+    );
     arrow();
     // 第三步上传文件
     await stepLoading(async () => upload(config), "开始上传...");
-    success(`上传完成 ${underlineAndBold(config.sourcePath)}`);
+    success(`上传完成 ${underlineAndBoldText(config.sourcePath)}`);
     arrow();
     // 第四步解压缩
     await stepLoading(async () => unzip(config), "开始解压...");
-    success(`解压完成 ${underlineAndBold(config.remotePath)}`);
+    success(`解压完成 ${underlineAndBoldText(config.remotePath)}`);
   } finally {
     arrow();
     // 第五步删除文件
     await stepLoading(async () => deleteLocal(config), "删除本地...");
-    success(`删除完成 ${underlineAndBold(bundleFilePath)}`);
+    success(`删除完成 ${underlineAndBoldText(bundleFilePath)}`);
     // 手动释放资源
     ssh.isConnected() && ssh.dispose();
   }
@@ -190,8 +192,8 @@ export async function execScript(
       });
     },
     opts?.tip || "正在执行...",
-    `执行${underlineAndBold(cmd)}失败`
+    `执行${underlineAndBoldText(cmd)}失败`
   );
-  success(`执行完成 ${underlineAndBold(cmd)}`);
+  success(`执行完成 ${underlineAndBoldText(cmd)}`);
   arrow();
 }

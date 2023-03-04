@@ -1,6 +1,6 @@
 {
   "name": "jtcommand",
-  "version": "1.0.14",
+  "version": "1.0.15",
   "author": {
     "name": "HunterJiang"
   },
@@ -45,6 +45,7 @@
     "inquirer": "^8.2.0",
     "latest-version": "^7.0.0",
     "lodash": "^4.17.21",
+    "node-fetch": "2",
     "node-ssh": "11.1.1",
     "ora": "5.4.1",
     "read-pkg": "^7.1.0",
@@ -82,7 +83,7 @@
   },
   "readme": "ERROR: No README data found!",
   "homepage": "https://github.com/jafshare/JT#readme",
-  "_id": "jtcommand@1.0.13",
+  "_id": "jtcommand@1.0.14",
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx ./src",
     "src/**/*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write"

@@ -1,10 +1,38 @@
 [
   {
-    "name": "npm官方",
-    "src": "http://www.npmjs.org"
+    "name": "taobao",
+    "registry": "https://registry.npmmirror.com/"
   },
   {
-    "name": "淘宝",
-    "src": "https://registry.npm.taobao.org"
+    "name": "taobao2",
+    "registry": "https://registry.npm.taobao.org/"
+  },
+  {
+    "name": "cnpm",
+    "registry": "http://r.cnpmjs.org/"
+  },
+  {
+    "name": "npm",
+    "registry": "https://registry.npmjs.org/"
+  },
+  {
+    "name": "nj",
+    "registry": "https://registry.nodejitsu.com/"
+  },
+  {
+    "name": "rednpm",
+    "registry": "http://registry.mirror.cqupt.edu.cn/"
+  },
+  {
+    "name": "yarn",
+    "registry": "https://registry.yarnpkg.com"
+  },
+  {
+    "name": "npmMirror",
+    "registry": "https://skimdb.npmjs.com/registry/"
+  },
+  {
+    "name": "edunpm",
+    "registry": "http://registry.enpmjs.org/"
   }
 ]
