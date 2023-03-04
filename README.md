@@ -19,7 +19,7 @@ jt c
 ```
 ![create_preview](./docAssets/create_preview.png)
 ### 2、jt change-registry|cr
-本命令提供了快速切换源的功能，对于国内的开发者来说，npm官方源的下载速度不太给力，可以切换为淘宝源，也支持切换回官方源，目前支持 `npm`、`yarn`、`pnpm` 包管理器
+本命令提供了快速切换源的功能，对于国内的开发者来说，npm官方源的下载速度不太给力，可以切换为其他源，也支持切换回官方源，并支持镜像源测速，目前支持 `npm`、`yarn`、`pnpm` 包管理器
 ```sh
 jt cr
 ```

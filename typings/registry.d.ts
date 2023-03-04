@@ -1,4 +1,4 @@
 declare type Registry = {
-  name: string,
-  src: string
-}
+  name: string;
+  registry: string;
+};

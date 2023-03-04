@@ -4,7 +4,7 @@ import { BaseRegistry } from "../base/registry";
 import { TEMPLATE_PATH } from "@/constant/path";
 
 import COMMAND from "@/constant/command";
-import { error, success, underlineAndBold, warn } from "@/lib/log";
+import { error, success, underlineAndBoldText, warn } from "@/lib/log";
 const emptyMessage = "暂无可用配置模板，请添加(●'◡'●)";
 /**
  * 对模板仓库的封装
@@ -88,7 +88,7 @@ export default defineCommand({
             localPath: ans.local ? ans.url : "",
             remoteSrc: ans.local ? "" : ans.url
           });
-          success(`新增模板${underlineAndBold(ans.templateName)}`);
+          success(`新增模板${underlineAndBoldText(ans.templateName)}`);
         } else if (options.update) {
           let id = options.update;
           // 如果未提供配置名称，则提供选择
@@ -98,7 +98,7 @@ export default defineCommand({
             id = ans.name;
           }
           if (!templateRegistry.exists(id)) {
-            error(`模板${underlineAndBold(id)}不存在`);
+            error(`模板${underlineAndBoldText(id)}不存在`);
             return;
           }
           const record = templateRegistry.get(id)!;
@@ -148,7 +148,7 @@ export default defineCommand({
             localPath: ans.local ? ans.url : "",
             remoteSrc: ans.local ? "" : ans.url
           });
-          success(`更新模板${underlineAndBold(id)}`);
+          success(`更新模板${underlineAndBoldText(id)}`);
         } else if (options.rm) {
           let id = options.rm;
           // 如果未提供配置名称，则提供选择
@@ -158,11 +158,11 @@ export default defineCommand({
             id = ans.name;
           }
           if (!templateRegistry.exists(id)) {
-            error(`模板${underlineAndBold(id)}不存在`);
+            error(`模板${underlineAndBoldText(id)}不存在`);
             return;
           }
           templateRegistry.remove(id);
-          success(`已删除模板${underlineAndBold(id)}`);
+          success(`已删除模板${underlineAndBoldText(id)}`);
         } else if (options.clear) {
           // 确认清空
           const ans = await inquirer.prompt([
@@ -181,7 +181,7 @@ export default defineCommand({
           }
 
           if (!templateRegistry.exists(id)) {
-            error(`模板${underlineAndBold(id)}不存在`);
+            error(`模板${underlineAndBoldText(id)}不存在`);
             return;
           }
           const record = templateRegistry.get(id)!;

@@ -6,7 +6,7 @@ import ora from "ora";
 import extract from "extract-zip";
 import defineCommand from "../defineCommand";
 import COMMAND from "@/constant/command";
-import { danger, newline, success, underlineAndBold } from "@/lib/log";
+import { dangerText, newline, success, underlineAndBoldText } from "@/lib/log";
 import { CONFIG_DIR } from "@/constant/path";
 const bundleFilename = "jt_config.zip";
 /**
@@ -82,7 +82,7 @@ export default defineCommand({
             await unzip(getFullPath(importPath, bundleFilename), CONFIG_DIR);
             loading.succeed("导入完成");
           } catch (err) {
-            loading.fail(danger(`导入失败 ${err}`));
+            loading.fail(dangerText(`导入失败 ${err}`));
           }
         } else if (options.export) {
           // 导出
@@ -99,9 +99,9 @@ export default defineCommand({
             );
             loading.succeed("导出完成");
             newline();
-            success(`配置已导出 ${underlineAndBold(output)}`);
+            success(`配置已导出 ${underlineAndBoldText(output)}`);
           } catch (err) {
-            loading.fail(danger(`导出失败 ${err}`));
+            loading.fail(dangerText(`导出失败 ${err}`));
           }
         }
       });
