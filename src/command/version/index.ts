@@ -1,12 +1,15 @@
 import { join } from "path";
-import inquirer from "inquirer";
+
 import { existsSync } from "fs-extra";
+import inquirer from "inquirer";
 import { readPackageSync } from "read-pkg";
 import { writePackageSync } from "write-pkg";
-import defineCommand from "../defineCommand";
-import { Version, versionRE } from "./version";
+
 import COMMAND from "@/constant/command";
 import { newline, success } from "@/lib/log";
+
+import { Version, versionRE } from "./version";
+import defineCommand from "../defineCommand";
 
 export default defineCommand({
   name: COMMAND.RELEASE_VERSION,

@@ -2,16 +2,20 @@
  * 参考项目: https://github.com/dadaiwei/fe-deploy-cli
  */
 import { join } from "path";
-import type { QuestionCollection } from "inquirer";
+
 import inquirer from "inquirer";
-import defineCommand from "../defineCommand";
-import { BaseRegistry } from "../base/registry";
-import { deploy, execScript } from "./deploy";
-import { DEPLOY_PATH } from "@/constant/path";
 
 import COMMAND from "@/constant/command";
-import { error, newline, success, underlineAndBoldText, warn } from "@/lib/log";
+import { DEPLOY_PATH } from "@/constant/path";
 import { validEmpty, withDefault } from "@/lib/inquirerUtils";
+import { error, newline, success, underlineAndBoldText, warn } from "@/lib/log";
+
+import { deploy, execScript } from "./deploy";
+import { BaseRegistry } from "../base/registry";
+import defineCommand from "../defineCommand";
+
+import type { QuestionCollection } from "inquirer";
+
 export interface DeployRecord {
   name: string;
   // 连接模式 密码/密钥

@@ -1,14 +1,18 @@
-import { basename, join } from "path";
 import { existsSync } from "fs";
-import inquirer from "inquirer";
-import { isArray, mergeWith } from "lodash";
+import { basename, join } from "path";
+
 import { copy } from "fs-extra";
+import inquirer from "inquirer";
+import latestVersion from "latest-version";
+import { isArray, mergeWith } from "lodash";
 import { readPackage } from "read-pkg";
 import { writePackage } from "write-pkg";
-import latestVersion from "latest-version";
-import defineCommand from "../defineCommand";
-import { error, success } from "@/lib/log";
+
 import COMMAND from "@/constant/command";
+import { error, success } from "@/lib/log";
+
+import defineCommand from "../defineCommand";
+
 export interface FileDescriptor {
   source: string;
   dest: string;
@@ -104,7 +108,12 @@ const getConfig = async ({
     eslint: {
       files: ["eslint/.eslintignore"],
       packages: [
-        { name: "eslint", version: "^8.29.0", type: "devDependencies" }
+        { name: "eslint", version: "^8.29.0", type: "devDependencies" },
+        {
+          name: "eslint-plugin-import",
+          version: await latestVersion("eslint-plugin-import"),
+          type: "devDependencies"
+        }
       ],
       scripts: []
     },
