@@ -1,15 +1,16 @@
 import figlet from "figlet";
 
-import { PROJECT_NAME } from "./constant";
-import { success } from "./lib/log";
-import program from "./core";
+import configCommand from "./command/config";
 import createCommand from "./command/create";
+import deployCommand from "./command/deploy";
+import projectCommand from "./command/project";
 import registryCommand from "./command/registry";
 import templateCommand from "./command/template";
-import deployCommand from "./command/deploy";
-import configCommand from "./command/config";
-import projectCommand from "./command/project";
 import versionCommand from "./command/version";
+import { PROJECT_NAME } from "./constant";
+import program from "./core";
+import { success } from "./lib/log";
+
 import type { CommandPlugin } from "./command/index.d";
 // 初始化数据
 

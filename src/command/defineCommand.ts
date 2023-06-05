@@ -1,4 +1,5 @@
 import type { CommandPlugin } from "./index.d";
+
 const defineCommand = (command: CommandPlugin) => {
   return command;
 };

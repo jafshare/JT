@@ -1,4 +1,5 @@
 import chalk from "chalk";
+
 const debug = (...args: any[]) => {
   console.log(chalk.greenBright(...args));
 };

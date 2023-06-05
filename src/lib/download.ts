@@ -1,5 +1,6 @@
-import ora from "ora";
 import gitly from "gitly";
+import ora from "ora";
+
 import { TEMP_PATH } from "@/constant";
 /**
  * 模板下载

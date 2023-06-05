@@ -1,10 +1,12 @@
 import inquirer from "inquirer";
-import defineCommand from "../defineCommand";
-import { BaseRegistry } from "../base/registry";
-import { TEMPLATE_PATH } from "@/constant/path";
 
 import COMMAND from "@/constant/command";
+import { TEMPLATE_PATH } from "@/constant/path";
 import { error, success, underlineAndBoldText, warn } from "@/lib/log";
+
+import { BaseRegistry } from "../base/registry";
+import defineCommand from "../defineCommand";
+
 const emptyMessage = "暂无可用配置模板，请添加(●'◡'●)";
 /**
  * 对模板仓库的封装

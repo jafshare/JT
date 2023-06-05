@@ -1,13 +1,17 @@
 import fs from "fs";
 import { extname, join, normalize } from "path";
-import { existsSync } from "fs-extra";
+
 import archiver from "archiver";
-import ora from "ora";
 import extract from "extract-zip";
-import defineCommand from "../defineCommand";
+import { existsSync } from "fs-extra";
+import ora from "ora";
+
 import COMMAND from "@/constant/command";
-import { dangerText, newline, success, underlineAndBoldText } from "@/lib/log";
 import { CONFIG_DIR } from "@/constant/path";
+import { dangerText, newline, success, underlineAndBoldText } from "@/lib/log";
+
+import defineCommand from "../defineCommand";
+
 const bundleFilename = "jt_config.zip";
 /**
  * 获取完整的路径，如果指定到文件，则使用指定的文件名，指定到目录，则使用base作为文件名

@@ -1,11 +1,13 @@
-import inquirer from "inquirer";
 import { execaSync } from "execa";
-
+import inquirer from "inquirer";
 import ora from "ora";
-import defineCommand from "../defineCommand";
+
+import configs from "@/config";
 import COMMAND from "@/constant/command";
 import { dangerText, error, success, underlineAndBoldText } from "@/lib/log";
-import configs from "@/config";
+
+import defineCommand from "../defineCommand";
+
 export default defineCommand({
   name: COMMAND.CHANGE_REGISTRY,
   use: (ctx) => {

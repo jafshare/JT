@@ -1,13 +1,16 @@
 import path from "path";
-import inquirer from "inquirer";
+
 import { copy, existsSync, mkdir, mkdirSync, remove, rmSync } from "fs-extra";
+import inquirer from "inquirer";
+
+import configs from "@/config";
+import { TEMP_PATH, VERSION } from "@/constant";
+import COMMAND from "@/constant/command";
+import { gitDownload } from "@/lib/download";
+import { error, info, success, warn } from "@/lib/log";
 
 import defineCommand from "../defineCommand";
-import { TEMP_PATH, VERSION } from "@/constant";
-import { error, info, success, warn } from "@/lib/log";
-import { gitDownload } from "@/lib/download";
-import configs from "@/config";
-import COMMAND from "@/constant/command";
+
 export interface Answers {
   projectName: string;
   template: string;

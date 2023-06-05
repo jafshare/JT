@@ -1,5 +1,6 @@
-import path from "path";
 import os from "os";
+import path from "path";
+
 export const AppData = path.join(os.homedir(), "AppData", "Roaming", "jt");
 export const DEFAULT_CONFIG_DIR = path.join(__dirname, "..", "config");
 export const CONFIG_DIR = path.join(AppData, "config");

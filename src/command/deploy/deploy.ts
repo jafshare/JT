@@ -1,10 +1,13 @@
-import fs from "fs";
 import { exec } from "child_process";
-import { NodeSSH } from "node-ssh";
+import fs from "fs";
+
 import archiver from "archiver";
 import { existsSync, unlinkSync } from "fs-extra";
+import { NodeSSH } from "node-ssh";
 import ora from "ora";
+
 import { arrow, dangerText, success, underlineAndBoldText } from "@/lib/log";
+
 const ssh = new NodeSSH();
 export interface DeployConfig {
   password?: string;

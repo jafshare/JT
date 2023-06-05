@@ -1,4 +1,5 @@
 import path from "path";
+
 import { existsSync, mkdirSync, readJSONSync, writeJSONSync } from "fs-extra";
 /**
  * 存储基本类，封装基本的存储的功能

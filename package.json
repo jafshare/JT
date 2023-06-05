@@ -1,6 +1,6 @@
 {
   "name": "jtcommand",
-  "version": "1.0.15",
+  "version": "1.0.16",
   "author": {
     "name": "HunterJiang"
   },
@@ -68,6 +68,7 @@
     "@types/rollup": "^0.54.0",
     "eslint": "^8.29.0",
     "eslint-config-prettier": "^8.0.0",
+    "eslint-plugin-import": "^2.27.5",
     "eslint-plugin-prettier": "^4.2.1",
     "husky": "^8.0.1",
     "lint-staged": "^13.0.3",
@@ -81,9 +82,7 @@
   "bugs": {
     "url": "https://github.com/jafshare/JT/issues"
   },
-  "readme": "ERROR: No README data found!",
   "homepage": "https://github.com/jafshare/JT#readme",
-  "_id": "jtcommand@1.0.14",
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": "eslint --cache --fix --ext .js,.ts,.jsx,.tsx ./src",
     "src/**/*.{js,jsx,tsx,ts,less,md,json}": "prettier --ignore-unknown --write"

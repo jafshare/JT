@@ -1,6 +1,8 @@
 import path from "path";
+
 // @ts-expect-error
 import pkg from "../../package.json";
+
 const VERSION = `V${pkg.version}`;
 const PROJECT_NAME = "jt";
 const TEMP_DIR_NAME = ".temp";
